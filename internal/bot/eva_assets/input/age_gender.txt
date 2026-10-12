@@ -1,0 +1,6 @@
+im 20
+im 21
+i am 20
+i am 21
+male 20
+female 20

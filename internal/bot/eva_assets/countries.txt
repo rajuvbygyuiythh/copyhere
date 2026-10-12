@@ -1,0 +1,12 @@
+usa=usa
+united states=usa
+america=usa
+canada=canada
+uk=uk
+england=uk
+united kingdom=uk
+bangladesh=bangladesh
+india=india
+australia=australia
+germany=germany
+france=france
