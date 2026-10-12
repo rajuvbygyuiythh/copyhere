@@ -19,6 +19,18 @@ const (
 	evaStageMiddle        = "MIDDLE"
 	evaStageEnd           = "END"
 	evaMaxReplies         = 8
+
+	// evaSnapPool is the reply pool that shares the bot's snap/tg username.
+	// Lines normally contain %username%, which is filled from the dashboard
+	// "Usernames" list exactly like Single/Folder sequence messages.
+	evaSnapPool = "snap_share.txt"
+	// evaSnapTrigger lists user phrases that ask for a snap/insta/tg handle.
+	evaSnapTrigger = "snap_request.txt"
+	// evaSnapAfterMiddleReplies is how many MIDDLE-stage bot replies happen
+	// before the username is shared proactively (if the user never asks).
+	evaSnapAfterMiddleReplies = 3
+	// evaUsernamePlaceholder mirrors the placeholder used by sequence modes.
+	evaUsernamePlaceholder = "%username%"
 )
 
 // EVAChatConfig is attached to a worker only when EVAChat Flow is selected.
@@ -34,6 +46,20 @@ type EVAReplyResult struct {
 	SourcePool string
 	Ended      bool
 	Reason     string
+	// HasUsername reports that Text contained %username% and was rendered
+	// with an assigned snap/tg username. Callers use it for the existing
+	// "snap/tg/user" counter and flagged-user bookkeeping.
+	HasUsername bool
+	// SnapShared reports that this reply is the snap/tg share line.
+	SnapShared bool
+}
+
+// EVAReplyOptions carries per-worker facts the shared engine cannot know.
+type EVAReplyOptions struct {
+	// HasUsernames is true when the worker has at least one snap/tg username
+	// configured in the dashboard. Without it a %username% snap line would
+	// render empty, so the engine skips the snap share instead.
+	HasUsernames bool
 }
 
 // EVAChatEngine is a native Go implementation of the active EVA input/output
@@ -46,6 +72,9 @@ type EVAChatEngine struct {
 	countries map[string]string
 	scanOrder []string
 	maxReply  int
+	// snapNeedsUsername is true when any output/snap_share.txt line uses
+	// %username%; such a pool is only usable when usernames are configured.
+	snapNeedsUsername bool
 }
 
 var evaSlang = map[string]string{
@@ -130,14 +159,32 @@ func LoadEVAChatEngine(dataRoot string) (*EVAChatEngine, error) {
 	sort.Strings(custom)
 	order = append(order, custom...)
 
+	snapNeedsUsername := false
+	for _, line := range outputs[evaSnapPool] {
+		if strings.Contains(line, evaUsernamePlaceholder) {
+			snapNeedsUsername = true
+			break
+		}
+	}
+
 	return &EVAChatEngine{
-		dataRoot:  dataRoot,
-		inputs:    inputs,
-		outputs:   outputs,
-		countries: countries,
-		scanOrder: order,
-		maxReply:  evaMaxReplies,
+		dataRoot:          dataRoot,
+		inputs:            inputs,
+		outputs:           outputs,
+		countries:         countries,
+		scanOrder:         order,
+		maxReply:          evaMaxReplies,
+		snapNeedsUsername: snapNeedsUsername,
 	}, nil
+}
+
+// SnapShareAvailable reports whether the loaded pack can share a snap/tg
+// username for a worker with (or without) configured usernames.
+func (e *EVAChatEngine) SnapShareAvailable(hasUsernames bool) bool {
+	if e == nil || len(e.outputs[evaSnapPool]) == 0 {
+		return false
+	}
+	return hasUsernames || !e.snapNeedsUsername
 }
 
 func loadEVATextTree(root string, skipComments bool) (map[string][]string, error) {
@@ -267,7 +314,14 @@ func (e *EVAChatEngine) Start(state *model.EVAChatSession, rng *rand.Rand) EVARe
 }
 
 // Reply processes one incoming message and mutates only the supplied session.
+// It assumes usernames are configured; workers use ReplyWithOptions.
 func (e *EVAChatEngine) Reply(message string, state *model.EVAChatSession, rng *rand.Rand) EVAReplyResult {
+	return e.ReplyWithOptions(message, state, rng, EVAReplyOptions{HasUsernames: true})
+}
+
+// ReplyWithOptions is Reply with per-worker facts such as whether a snap/tg
+// username list exists.
+func (e *EVAChatEngine) ReplyWithOptions(message string, state *model.EVAChatSession, rng *rand.Rand, opts EVAReplyOptions) EVAReplyResult {
 	if e == nil {
 		return EVAReplyResult{Reason: "EVAChat engine unavailable"}
 	}
@@ -303,8 +357,24 @@ func (e *EVAChatEngine) Reply(message string, state *model.EVAChatSession, rng *
 	if state.Blocked {
 		return e.finish(state, rng, "age gate")
 	}
+	// Once the snap/tg username has gone out, the next user message closes
+	// the flow politely instead of continuing small talk.
+	if state.SnapShared {
+		return e.finish(state, rng, "snap shared; closing")
+	}
+	snapAvailable := e.SnapShareAvailable(opts.HasUsernames)
 	if state.BotReplyCount >= e.maxReply {
 		return e.finish(state, rng, "reply cap")
+	}
+	// Share the username before the cap closes the chat so a long
+	// conversation never ends without the snap/tg line.
+	if snapAvailable && state.BotReplyCount >= e.maxReply-1 && state.Stage != evaStageNew {
+		return e.shareSnap(state, rng, "reply cap reached before share")
+	}
+	// A direct "snap?/insta?/tg?" request is honoured at any stage after the
+	// opener, even before age/country were captured.
+	if snapAvailable && state.Stage != evaStageNew && e.matchesCategory(message, evaSnapTrigger) {
+		return e.shareSnap(state, rng, "user asked for snap/tg")
 	}
 
 	switch state.Stage {
@@ -339,20 +409,29 @@ func (e *EVAChatEngine) Reply(message string, state *model.EVAChatSession, rng *
 		state.Stage = evaStageMiddle
 		return e.pick("follow_up.txt", state, rng, "country stage fallback")
 	default:
-		return e.replyMiddle(message, state, rng)
+		return e.replyMiddle(message, state, rng, snapAvailable)
 	}
 }
 
-func (e *EVAChatEngine) replyMiddle(message string, state *model.EVAChatSession, rng *rand.Rand) EVAReplyResult {
+func (e *EVAChatEngine) replyMiddle(message string, state *model.EVAChatSession, rng *rand.Rand, snapAvailable bool) EVAReplyResult {
 	if e.matchesCategory(message, "busy_later.txt") {
+		// The user is leaving: share the username now if it never went out,
+		// otherwise say goodbye.
+		if snapAvailable {
+			return e.shareSnap(state, rng, "user leaving before share")
+		}
 		result := e.pick("busy_later.txt", state, rng, "user is leaving")
 		state.Stage = evaStageEnd
 		state.Ended = true
 		result.Ended = true
 		return result
 	}
+	if snapAvailable && state.MiddleReplies >= evaSnapAfterMiddleReplies {
+		return e.shareSnap(state, rng, fmt.Sprintf("after %d middle replies", state.MiddleReplies))
+	}
+	state.MiddleReplies++
 	for _, category := range e.scanOrder {
-		if category == "busy_later.txt" || category == "country.txt" || category == "age_gender.txt" {
+		if category == "busy_later.txt" || category == "country.txt" || category == "age_gender.txt" || category == evaSnapTrigger {
 			continue
 		}
 		if e.matchesCategory(message, category) {
@@ -360,6 +439,33 @@ func (e *EVAChatEngine) replyMiddle(message string, state *model.EVAChatSession,
 		}
 	}
 	return e.pick("follow_up.txt", state, rng, "no category match")
+}
+
+// shareSnap sends one line from output/snap_share.txt exactly once per user.
+// The returned Text still contains %username%; the worker adapter renders it
+// with the per-user assigned username (see evaChatRender).
+func (e *EVAChatEngine) shareSnap(state *model.EVAChatSession, rng *rand.Rand, reason string) EVAReplyResult {
+	e.normalizeState(state)
+	lines := e.outputs[evaSnapPool]
+	if len(lines) == 0 || state.SnapShared {
+		return e.pick("follow_up.txt", state, rng, reason+"; snap pool unavailable")
+	}
+	choice := lines[0]
+	if rng != nil && len(lines) > 1 {
+		choice = lines[rng.Intn(len(lines))]
+	}
+	state.SnapShared = true
+	state.PoolsUsed[evaSnapPool] = true
+	state.UsedReplies[evaSnapPool] = append(state.UsedReplies[evaSnapPool], choice)
+	state.LastPool = evaSnapPool
+	state.BotReplyCount++
+	return EVAReplyResult{
+		Text:        choice,
+		SourcePool:  evaSnapPool,
+		Reason:      reason,
+		SnapShared:  true,
+		HasUsername: strings.Contains(choice, evaUsernamePlaceholder),
+	}
 }
 
 func (e *EVAChatEngine) finish(state *model.EVAChatSession, rng *rand.Rand, reason string) EVAReplyResult {
@@ -411,7 +517,12 @@ func (e *EVAChatEngine) pick(pool string, state *model.EVAChatSession, rng *rand
 	state.LastPool = actualPool
 	state.BotReplyCount++
 
-	return EVAReplyResult{Text: choice, SourcePool: actualPool, Reason: reason}
+	return EVAReplyResult{
+		Text:        choice,
+		SourcePool:  actualPool,
+		Reason:      reason,
+		HasUsername: strings.Contains(choice, evaUsernamePlaceholder),
+	}
 }
 
 func (e *EVAChatEngine) normalizeState(state *model.EVAChatSession) {
@@ -609,12 +720,27 @@ func evaChatStart(cfg Config, accountState *model.AccountState, userID string, r
 	session := evaChatSession(accountState, userID)
 	result := cfg.EVAChat.Engine.Start(&session, rng)
 	accountState.EVAChatSessions[userID] = session
-	return result
+	return evaChatRender(cfg, accountState, userID, rng, result)
 }
 
 func evaChatReply(cfg Config, accountState *model.AccountState, userID, incoming string, rng *rand.Rand) EVAReplyResult {
 	session := evaChatSession(accountState, userID)
-	result := cfg.EVAChat.Engine.Reply(incoming, &session, rng)
+	opts := EVAReplyOptions{HasUsernames: len(cfg.MessageUsernames) > 0}
+	result := cfg.EVAChat.Engine.ReplyWithOptions(incoming, &session, rng, opts)
 	accountState.EVAChatSessions[userID] = session
+	return evaChatRender(cfg, accountState, userID, rng, result)
+}
+
+// evaChatRender fills %username% in an EVAChat reply with the same per-user
+// snap/tg username assignment used by Single/Folder sequence modes, so the
+// dashboard "snap/tg/user" counter and flagged-user tracking keep working.
+func evaChatRender(cfg Config, accountState *model.AccountState, userID string, rng *rand.Rand, result EVAReplyResult) EVAReplyResult {
+	if !result.HasUsername || !strings.Contains(result.Text, evaUsernamePlaceholder) {
+		result.HasUsername = false
+		return result
+	}
+	assigned := getOrAssignUsername(cfg, accountState, userID, rng)
+	result.Text = renderMessageTemplate(result.Text, rng, assigned)
+	result.HasUsername = assigned != "" && strings.Contains(result.Text, assigned)
 	return result
 }

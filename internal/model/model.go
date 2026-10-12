@@ -183,19 +183,25 @@ type FirstMessage struct {
 // deliberately kept in the existing bot state file, so a polling cycle or app
 // restart does not reset the conversation back to its greeting stage.
 type EVAChatSession struct {
-	Started       bool                `json:"started"`
-	Ended         bool                `json:"ended"`
-	Stage         string              `json:"stage"`
-	UserAge       int                 `json:"user_age,omitempty"`
-	HasUserAge    bool                `json:"has_user_age,omitempty"`
-	UserGender    string              `json:"user_gender,omitempty"`
-	UserCountry   string              `json:"user_country,omitempty"`
-	Blocked       bool                `json:"blocked,omitempty"`
-	BotReplyCount int                 `json:"bot_reply_count"`
-	Misses        int                 `json:"misses,omitempty"`
-	PoolsUsed     map[string]bool     `json:"pools_used,omitempty"`
-	UsedReplies   map[string][]string `json:"used_replies,omitempty"`
-	LastPool      string              `json:"last_pool,omitempty"`
+	Started       bool   `json:"started"`
+	Ended         bool   `json:"ended"`
+	Stage         string `json:"stage"`
+	UserAge       int    `json:"user_age,omitempty"`
+	HasUserAge    bool   `json:"has_user_age,omitempty"`
+	UserGender    string `json:"user_gender,omitempty"`
+	UserCountry   string `json:"user_country,omitempty"`
+	Blocked       bool   `json:"blocked,omitempty"`
+	BotReplyCount int    `json:"bot_reply_count"`
+	// MiddleReplies counts bot replies sent while in the MIDDLE stage. It
+	// drives the proactive snap/tg username share after a few exchanges.
+	MiddleReplies int `json:"middle_replies,omitempty"`
+	// SnapShared is set once the snap/tg username line has been sent so it
+	// is never shared twice with the same user.
+	SnapShared  bool                `json:"snap_shared,omitempty"`
+	Misses      int                 `json:"misses,omitempty"`
+	PoolsUsed   map[string]bool     `json:"pools_used,omitempty"`
+	UsedReplies map[string][]string `json:"used_replies,omitempty"`
+	LastPool    string              `json:"last_pool,omitempty"`
 }
 
 type AccountState struct {

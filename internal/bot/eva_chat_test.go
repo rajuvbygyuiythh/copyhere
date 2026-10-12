@@ -4,6 +4,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"chitchatbot/internal/model"
@@ -122,5 +123,123 @@ func TestEVAChatLoadRejectsMissingRequiredPool(t *testing.T) {
 	}
 	if _, err := LoadEVAChatEngine(root); err == nil {
 		t.Fatal("expected missing required output pool to be rejected")
+	}
+}
+
+func TestEVAChatSharesSnapWhenUserAsks(t *testing.T) {
+	engine := testEVAEngine(t)
+	if !engine.SnapShareAvailable(true) {
+		t.Fatal("starter pack should provide output/snap_share.txt")
+	}
+	if engine.SnapShareAvailable(false) {
+		t.Fatal("snap share must be unavailable when no usernames are configured and the pool uses %username%")
+	}
+
+	cfg := Config{
+		ChatMode:         model.ChatModeEVAChat,
+		EVAChat:          &EVAChatConfig{Engine: engine},
+		MessageUsernames: []string{"snap_demo_user"},
+	}
+	state := &model.AccountState{}
+	rng := rand.New(rand.NewSource(5))
+
+	opener := evaChatStart(cfg, state, "user-2", rng)
+	if opener.HasUsername {
+		t.Fatalf("opener must not carry a username: %#v", opener)
+	}
+	_ = evaChatReply(cfg, state, "user-2", "f22", rng)
+	_ = evaChatReply(cfg, state, "user-2", "canada", rng)
+
+	share := evaChatReply(cfg, state, "user-2", "whats your snap", rng)
+	if !share.SnapShared || share.SourcePool != evaSnapPool || !share.HasUsername {
+		t.Fatalf("direct snap request should share the username: %#v", share)
+	}
+	if !strings.Contains(share.Text, "snap_demo_user") || strings.Contains(share.Text, evaUsernamePlaceholder) {
+		t.Fatalf("%%username%% was not rendered: %q", share.Text)
+	}
+	stored := state.EVAChatSessions["user-2"]
+	if !stored.SnapShared || state.AssignedUsernames["user-2"] != "snap_demo_user" {
+		t.Fatalf("snap share state not persisted: session=%#v assigned=%#v", stored, state.AssignedUsernames)
+	}
+
+	closing := evaChatReply(cfg, state, "user-2", "ok added you", rng)
+	if !closing.Ended || closing.SourcePool != "closer.txt" || closing.SnapShared {
+		t.Fatalf("after sharing, the next reply must close politely: %#v", closing)
+	}
+	if again := evaChatReply(cfg, state, "user-2", "snap?", rng); again.Text != "" || again.SnapShared {
+		t.Fatalf("username must never be shared twice: %#v", again)
+	}
+}
+
+func TestEVAChatSharesSnapProactivelyAfterMiddleReplies(t *testing.T) {
+	engine := testEVAEngine(t)
+	cfg := Config{
+		ChatMode:         model.ChatModeEVAChat,
+		EVAChat:          &EVAChatConfig{Engine: engine},
+		MessageUsernames: []string{"proactive_user"},
+	}
+	state := &model.AccountState{}
+	rng := rand.New(rand.NewSource(13))
+
+	_ = evaChatStart(cfg, state, "user-3", rng)
+	_ = evaChatReply(cfg, state, "user-3", "m25", rng)
+	_ = evaChatReply(cfg, state, "user-3", "india", rng)
+
+	var share EVAReplyResult
+	for i := 0; i < evaSnapAfterMiddleReplies+1; i++ {
+		share = evaChatReply(cfg, state, "user-3", "haha nice", rng)
+		if share.SnapShared {
+			break
+		}
+	}
+	if !share.SnapShared || !strings.Contains(share.Text, "proactive_user") {
+		t.Fatalf("expected a proactive snap share after %d middle replies: %#v", evaSnapAfterMiddleReplies, share)
+	}
+	if got := state.EVAChatSessions["user-3"].MiddleReplies; got != evaSnapAfterMiddleReplies {
+		t.Fatalf("middle reply counter = %d, want %d", got, evaSnapAfterMiddleReplies)
+	}
+}
+
+func TestEVAChatSharesSnapWhenUserLeaves(t *testing.T) {
+	engine := testEVAEngine(t)
+	cfg := Config{
+		ChatMode:         model.ChatModeEVAChat,
+		EVAChat:          &EVAChatConfig{Engine: engine},
+		MessageUsernames: []string{"leaving_user"},
+	}
+	state := &model.AccountState{}
+	rng := rand.New(rand.NewSource(17))
+
+	_ = evaChatStart(cfg, state, "user-4", rng)
+	_ = evaChatReply(cfg, state, "user-4", "f19", rng)
+	_ = evaChatReply(cfg, state, "user-4", "uk", rng)
+
+	share := evaChatReply(cfg, state, "user-4", "gtg brb", rng)
+	if !share.SnapShared || !strings.Contains(share.Text, "leaving_user") {
+		t.Fatalf("user leaving before share should receive the username: %#v", share)
+	}
+}
+
+func TestEVAChatSkipsSnapWithoutUsernames(t *testing.T) {
+	engine := testEVAEngine(t)
+	cfg := Config{ChatMode: model.ChatModeEVAChat, EVAChat: &EVAChatConfig{Engine: engine}}
+	state := &model.AccountState{}
+	rng := rand.New(rand.NewSource(19))
+
+	_ = evaChatStart(cfg, state, "user-5", rng)
+	_ = evaChatReply(cfg, state, "user-5", "m30", rng)
+	_ = evaChatReply(cfg, state, "user-5", "usa", rng)
+
+	for i := 0; i < evaMaxReplies; i++ {
+		result := evaChatReply(cfg, state, "user-5", "whats your snap", rng)
+		if result.SnapShared || result.HasUsername || strings.Contains(result.Text, evaUsernamePlaceholder) {
+			t.Fatalf("snap share must be skipped when no usernames exist: %#v", result)
+		}
+		if result.Ended {
+			break
+		}
+	}
+	if state.EVAChatSessions["user-5"].SnapShared {
+		t.Fatal("session must not be marked as shared without usernames")
 	}
 }

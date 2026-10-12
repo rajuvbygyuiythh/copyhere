@@ -31,6 +31,20 @@ data/eva_chat/
 └── README.txt
 ```
 
+Snap / Telegram username share (same mechanism as the other two modes):
+
+```text
+input/snap_request.txt   -> user phrases such as "whats your snap", "insta?", "tg"
+output/snap_share.txt    -> e.g. "sure, add me on snap, its %username%"
+```
+
+`%username%` is filled from **Message → Usernames** (one snap/tg handle per
+line), exactly like Single/Folder sequences. The line is sent **once per user**
+when the user asks for it, after 3 middle-chat replies, or when the user says
+they are leaving. The dashboard `snap/tg/user` counter and flagged-user
+tracking increase in the same way. If the Usernames list is empty the share
+step is skipped and the chat continues normally.
+
 A category is connected by file name:
 
 ```text
@@ -42,12 +56,13 @@ The starter flow uses neutral categories including greeting, age/gender, country
 
 ## Engine behavior
 
-- Stages: `NEW → WAIT_AGE_GENDER → WAIT_COUNTRY → MIDDLE → END`
+- Stages: `NEW → WAIT_AGE_GENDER → WAIT_COUNTRY → MIDDLE → (snap share) → END`
 - Match order: exact, normalized punctuation, whole phrase, slang-normalized, then token subset.
 - A reply pool is selected randomly without repeating a line until the pool is exhausted.
 - Conversation state is stored per user in the existing bot-state JSON, so it continues through later polling cycles.
 - Under-18 age signals end the EVAChat Flow safely.
-- The reply cap uses a neutral closing pool.
+- The reply cap uses a neutral closing pool; the snap/tg line is sent before the cap closes the chat.
+- After the snap/tg line, the next user message receives a closer and the flow ends.
 
 ## Windows build
 

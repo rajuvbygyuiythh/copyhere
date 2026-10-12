@@ -12,6 +12,10 @@ ok   chitchatbot/internal/bot
 ok   chitchatbot/internal/uistore
 ```
 
+Re-verified 2026-10-13 with Go 1.27.2 (Linux sandbox): 27 bot tests + 2 uistore
+tests pass; `GOOS=windows GOARCH=amd64 go build ./...` and `go vet ./...` pass;
+`internal/runtimeassets` and `internal/workerplan` tests pass.
+
 The bot test package includes new checks for:
 
 - starter TXT pack bootstrap and validation
@@ -21,6 +25,9 @@ The bot test package includes new checks for:
 - age gate / end-state behavior
 - per-account `EVAChatSessions` state persistence through the runtime adapter
 - legacy stored `keyword` setting migration to `eva_chat_flow`
+- snap/tg username share: on direct request, proactively after middle replies,
+  when the user leaves; `%username%` rendering from the dashboard Usernames list;
+  never shared twice; skipped when no usernames are configured
 
 ### Windows compile validation
 

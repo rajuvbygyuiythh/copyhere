@@ -365,6 +365,7 @@ func processDMAutoResponses(
 			if evaChatEnabled(cfg) {
 				result := evaChatStart(cfg, &accountState, target.UserID, rng)
 				messageText = result.Text
+				hasUsername = result.HasUsername
 				logf(cfg, "  -> [evachat] opener from %s (%s)\n", result.SourcePool, result.Reason)
 			} else if cfg.ChatMode == model.ChatModeKeyword && len(cfg.KeywordRules) > 0 {
 				assignedUsername := getOrAssignUsername(cfg, &accountState, target.UserID, rng)
@@ -452,6 +453,7 @@ func processDMAutoResponses(
 			if evaChatEnabled(cfg) {
 				result := evaChatReply(cfg, &accountState, target.UserID, message.Content, rng)
 				messageText = result.Text
+				hasUsername = result.HasUsername
 				logf(cfg, "  -> [evachat] reply from %s (%s)\n", result.SourcePool, result.Reason)
 				if messageText == "" {
 					markSeen(accountState.IncomingMessages, target.ConversationID, []model.Message{message}, false)
@@ -668,6 +670,7 @@ func sendFirstMessageIfNeeded(
 	if evaChatEnabled(cfg) {
 		result := evaChatStart(cfg, &accountState, target.UserID, rng)
 		messageText = result.Text
+		hasUsername = result.HasUsername
 		logf(cfg, "[realtime] EVAChat opener from %s (%s)\n", result.SourcePool, result.Reason)
 	} else if cfg.ChatMode == model.ChatModeKeyword && len(cfg.KeywordRules) > 0 {
 		assignedUsername := getOrAssignUsername(cfg, &accountState, target.UserID, rng)
@@ -1170,6 +1173,10 @@ func executeMatchEVAChat(
 			logf(cfg, "[evachat] Failed to send opener to %s. Ending chat.\n", target.Username)
 			return true, nil
 		}
+		if result.HasUsername {
+			accountState.SnapTgSentCount++
+			_ = markUserFlagged(cfg.DataDir, target.UserID)
+		}
 		sentCount++
 		accountState.SentMessageCounts[target.UserID] = sentCount
 		accountState.BaselineDone[target.UserID] = true
@@ -1266,6 +1273,11 @@ func executeMatchEVAChat(
 			return true, nil
 		}
 
+		if result.HasUsername {
+			accountState.SnapTgSentCount++
+			_ = markUserFlagged(cfg.DataDir, target.UserID)
+			logf(cfg, "[evachat] Shared snap/tg username with %s.\n", target.Username)
+		}
 		markSeen(accountState.IncomingMessages, target.ConversationID, []model.Message{incoming}, true)
 		sentCount++
 		accountState.SentMessageCounts[target.UserID] = sentCount
