@@ -450,10 +450,12 @@ func processDMAutoResponses(
 			var messageText string
 			var hasUsername bool
 
+			var evaExtraLines []string
 			if evaChatEnabled(cfg) {
 				result := evaChatReply(cfg, &accountState, target.UserID, message.Content, rng)
 				messageText = result.Text
 				hasUsername = result.HasUsername
+				evaExtraLines = result.Extra
 				logf(cfg, "  -> [evachat] reply from %s (%s)\n", result.SourcePool, result.Reason)
 				if messageText == "" {
 					markSeen(accountState.IncomingMessages, target.ConversationID, []model.Message{message}, false)
@@ -535,6 +537,9 @@ func processDMAutoResponses(
 				workDone = true
 				if hasUsername {
 					accountState.SnapTgSentCount++
+				}
+				if err := sendEVAExtraLines(ctx, client, cfg, login, target.ConversationID, evaExtraLines, rng); err != nil {
+					return workDone, err
 				}
 				markSeen(accountState.IncomingMessages, target.ConversationID, []model.Message{message}, true)
 				sentCount++
@@ -1278,6 +1283,9 @@ func executeMatchEVAChat(
 			_ = markUserFlagged(cfg.DataDir, target.UserID)
 			logf(cfg, "[evachat] Shared snap/tg username with %s.\n", target.Username)
 		}
+		if err := sendEVAExtraLines(ctx, client, cfg, login, target.ConversationID, result.Extra, rng); err != nil {
+			return true, err
+		}
 		markSeen(accountState.IncomingMessages, target.ConversationID, []model.Message{incoming}, true)
 		sentCount++
 		accountState.SentMessageCounts[target.UserID] = sentCount
@@ -1291,6 +1299,30 @@ func executeMatchEVAChat(
 			return true, nil
 		}
 	}
+}
+
+// sendEVAExtraLines sends the follow-up lines of a multi-line EVAChat reply
+// (the horny-question answer is 2 lines: horny_answer.txt then horny.txt).
+// Failures of the extra line are logged, never fatal: the main line is sent.
+func sendEVAExtraLines(ctx context.Context, client *api.Client, cfg Config, login model.LoginInfo, conversationID string, lines []string, rng *rand.Rand) error {
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		if err := sleepRandom(ctx, rng, cfg, cfg.ActionMin, cfg.ActionMax, "Waiting before EVAChat follow-up line"); err != nil {
+			return err
+		}
+		status, _, err := sendDMMessage(ctx, client, cfg, login, conversationID, line)
+		if err != nil {
+			return err
+		}
+		if status >= 400 {
+			logf(cfg, "[evachat] Follow-up line failed with status %d for %s.\n", status, conversationID)
+			return nil
+		}
+		logf(cfg, "[evachat] Sent follow-up line to %s.\n", conversationID)
+	}
+	return nil
 }
 
 func executeMatchKeywordChatSequence(

@@ -21,48 +21,47 @@ EVAChat Flow is a stateful, TXT-driven reply engine. It is implemented in Go and
 
 ## Editable data layout
 
-The app creates the following runtime folder next to its normal `data` directory:
+The app creates the following runtime folder next to its normal `data` directory
+(seeded from the embedded EVA TXT database on first start):
 
 ```text
 data/eva_chat/
-├── input/       # one trigger phrase per line
-├── output/      # one reply per line
-├── countries.txt
-└── README.txt
+├── countries.txt            # keyword=country
+├── input/                   # USER triggers (1 per line, '#' = comment)
+│   ├── greeting.txt age_gender.txt country.txt how_are_you.txt your_age.txt
+│   ├── english_only.txt horny.txt horny_answer.txt share_snap.txt snapchat.txt
+│   └── middle_chat/ flirty_reply.txt warm_reply.txt busy_later.txt
+└── output/                  # BOT replies (1 per line, '|' also splits)
+    ├── greeting.txt age_gender.txt age_ask.txt country.txt how_are_you.txt
+    ├── your_age.txt english_only.txt horny.txt horny_answer.txt
+    ├── flirty_questions.txt ask_snap.txt retry_nudge.txt share_snap.txt
+    ├── snapchat.txt closer.txt
+    └── middle_chat/ flirty_reply.txt warm_reply.txt busy_later.txt
 ```
+
+A category is connected by file name (`input/x.txt` detects, `output/x.txt`
+replies). Adding a new pair adds a category without any code change.
+
+The full rule set (category table, matching layers, stage machine, no-repeat
+rules, placeholders) is documented in `docs/CHAT_ENGINE_MAPPING.md`.
 
 Snap / Telegram username share (same mechanism as the other two modes):
+`output/share_snap.txt` and `output/snapchat.txt` lines contain `%username%`
+(or `{snap}`), filled from **Message → Usernames** exactly like Single/Folder
+sequences; the dashboard `snap/tg/user` counter and flagged-user tracking
+increase in the same way. The share happens when the user asks for the handle,
+or says yes after the bot's `ask_snap.txt` question. If the Usernames list is
+empty the bot closes politely instead of sharing.
 
-```text
-input/snap_request.txt   -> user phrases such as "whats your snap", "insta?", "tg"
-output/snap_share.txt    -> e.g. "sure, add me on snap, its %username%"
-```
+## Engine behavior (summary)
 
-`%username%` is filled from **Message → Usernames** (one snap/tg handle per
-line), exactly like Single/Folder sequences. The line is sent **once per user**
-when the user asks for it, after 3 middle-chat replies, or when the user says
-they are leaving. The dashboard `snap/tg/user` counter and flagged-user
-tracking increase in the same way. If the Usernames list is empty the share
-step is skipped and the chat continues normally.
-
-A category is connected by file name:
-
-```text
-input/how_are_you.txt   -> phrases such as "how are you"
-output/how_are_you.txt  -> replies chosen by the engine
-```
-
-The starter flow uses neutral categories including greeting, age/gender, country, small talk, warm replies, busy/later, follow-up, and closing.
-
-## Engine behavior
-
-- Stages: `NEW → WAIT_AGE_GENDER → WAIT_COUNTRY → MIDDLE → (snap share) → END`
-- Match order: exact, normalized punctuation, whole phrase, slang-normalized, then token subset.
-- A reply pool is selected randomly without repeating a line until the pool is exhausted.
-- Conversation state is stored per user in the existing bot-state JSON, so it continues through later polling cycles.
-- Under-18 age signals end the EVAChat Flow safely.
-- The reply cap uses a neutral closing pool; the snap/tg line is sent before the cap closes the chat.
-- After the snap/tg line, the next user message receives a closer and the flow ends.
+- Stages: `NEW → WAIT_AGE_GENDER → WAIT_COUNTRY → MIDDLE → END`
+- Match layers: exact, word-boundary phrase, leet regex (horny), slang-normalized, token subset; `english_only.txt` is strict.
+- Horny or flirty reply → next bot line is always `ask_snap.txt` → yes → `share_snap.txt` → END; "no" → `retry_nudge.txt` once → second "no" → `closer.txt`.
+- Horny QUESTION ("u horny?") → 2 lines: `horny_answer.txt` + `horny.txt`.
+- Every output file fires once per user except `flirty_questions, horny, middle_chat/flirty_reply, ask_snap, horny_answer, closer`; never the same line twice in a row.
+- Reply cap 8 → `closer.txt`. Age under 18 → never shares.
+- Conversation state (incl. a short transcript) is stored per user in the existing bot-state JSON, so it survives polling cycles and restarts.
 
 ## Windows build
 

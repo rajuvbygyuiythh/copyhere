@@ -186,6 +186,7 @@ type EVAChatSession struct {
 	Started       bool   `json:"started"`
 	Ended         bool   `json:"ended"`
 	Stage         string `json:"stage"`
+	SequenceStep  int    `json:"sequence_step,omitempty"`
 	UserAge       int    `json:"user_age,omitempty"`
 	HasUserAge    bool   `json:"has_user_age,omitempty"`
 	UserGender    string `json:"user_gender,omitempty"`
@@ -193,15 +194,32 @@ type EVAChatSession struct {
 	Blocked       bool   `json:"blocked,omitempty"`
 	BotReplyCount int    `json:"bot_reply_count"`
 	// MiddleReplies counts bot replies sent while in the MIDDLE stage. It
-	// drives the proactive snap/tg username share after a few exchanges.
+	// drives the proactive ask_snap.txt turn when the user never gets flirty.
 	MiddleReplies int `json:"middle_replies,omitempty"`
-	// SnapShared is set once the snap/tg username line has been sent so it
-	// is never shared twice with the same user.
-	SnapShared  bool                `json:"snap_shared,omitempty"`
-	Misses      int                 `json:"misses,omitempty"`
-	PoolsUsed   map[string]bool     `json:"pools_used,omitempty"`
-	UsedReplies map[string][]string `json:"used_replies,omitempty"`
-	LastPool    string              `json:"last_pool,omitempty"`
+	// AskNext arms the strict ask chain: after a horny.txt or
+	// middle_chat/flirty_reply.txt line the next bot turn is ask_snap.txt.
+	AskNext bool `json:"ask_next,omitempty"`
+	// AskedSnap is set once ask_snap.txt was sent; only then do bare
+	// yes-words trigger the share.
+	AskedSnap bool `json:"asked_snap,omitempty"`
+	// SnapNudges counts retry_nudge.txt lines sent after a refusal.
+	SnapNudges int `json:"snap_nudges,omitempty"`
+	// HornyDetected / SnapPivoted mirror the reference engine flags.
+	HornyDetected bool                `json:"horny_detected,omitempty"`
+	SnapPivoted   bool                `json:"snap_pivoted,omitempty"`
+	Misses        int                 `json:"misses,omitempty"`
+	PoolsUsed     map[string]bool     `json:"pools_used,omitempty"`
+	UsedReplies   map[string][]string `json:"used_replies,omitempty"`
+	LastPool      string              `json:"last_pool,omitempty"`
+	// Transcript is the bounded line-by-line memory (user + bot lines).
+	Transcript []EVATranscriptLine `json:"transcript,omitempty"`
+}
+
+// EVATranscriptLine is one remembered line of an EVAChat conversation.
+type EVATranscriptLine struct {
+	N    int    `json:"n"`
+	Who  string `json:"who"`
+	Text string `json:"text"`
 }
 
 type AccountState struct {

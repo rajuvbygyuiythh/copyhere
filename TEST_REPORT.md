@@ -12,22 +12,36 @@ ok   chitchatbot/internal/bot
 ok   chitchatbot/internal/uistore
 ```
 
-Re-verified 2026-10-13 with Go 1.27.2 (Linux sandbox): 27 bot tests + 2 uistore
-tests pass; `GOOS=windows GOARCH=amd64 go build ./...` and `go vet ./...` pass;
-`internal/runtimeassets` and `internal/workerplan` tests pass.
+Re-verified 2026-10-13 with Go 1.27.2 (Linux sandbox) after porting the EVA
+reference chat engine (`eva_flow.py`) 1:1: 42 bot tests (23 EVAChat) + 2
+uistore tests pass; `GOOS=windows GOARCH=amd64 go build ./...` and `go vet`
+pass.
 
-The bot test package includes new checks for:
+The EVAChat tests mirror the reference `test_flow.py` behaviour spec:
 
-- starter TXT pack bootstrap and validation
-- stage transition: opener → age/gender → country → middle chat
-- slang-normalized matching
-- no reuse of a spent reply pool
-- age gate / end-state behavior
-- per-account `EVAChatSessions` state persistence through the runtime adapter
-- legacy stored `keyword` setting migration to `eva_chat_flow`
-- snap/tg username share: on direct request, proactively after middle replies,
-  when the user leaves; `%username%` rendering from the dashboard Usernames list;
-  never shared twice; skipped when no usernames are configured
+- TXT pack integrity (every input has an output pool, scan priority, README not a pool)
+- `#` comment triggers ignored
+- basic funnel: hi → greeting, m21 → age_gender, from? → country, usa → flirty_questions
+- first-SMS variants (m21 / where u from / horny?)
+- bot-writes-first opener then the same funnel
+- horny QUESTION → 2 lines (horny_answer + horny) → ask_snap → yes → share_snap → END
+- leet detection (h0rny?, s3x) and the strict ask chain
+- MIDDLE categories: how_are_you, your_age, warm_reply, busy_later (2nd → closer), flirty_reply → ask → share, english_only
+- direct snap/insta/ghost request → share immediately; user offering own snap → terminal share
+- yes-words WITHOUT the bot's ask never share
+- refusal → retry_nudge once → second refusal → closer; firm refusal never shares
+- repeat loop: flirty_reply fires again with a different line, ask re-fires
+- underage (m15) → blocked, never shares, closer
+- multi-line message → last line drives the engine
+- reply cap → closer → END
+- 2 age-ask misses → progresses to country
+- no-repeat pools (greeting, age_gender, how_are_you once; flirty_questions repeats, never same line)
+- countries.txt detection and `{country}` / `{snap}` / `%username%` placeholders
+- transcript memory, pools_used, last_pool
+- proactive ask_snap in neutral middle chat
+- no usernames configured → closer instead of an empty share line
+- runtime adapter renders `%username%` from the dashboard Usernames list and persists the session
+- custom input+output pair auto-joins the scan (and `|` splits output lines)
 
 ### Windows compile validation
 
