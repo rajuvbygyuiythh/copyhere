@@ -102,9 +102,11 @@ not be touched or read.
 
 ## 6. Build / run on Windows
 
-```powershell
-wails build -clean -webview2 error     # or .\scripts\bundle-windows.ps1 -Clean
+```bat
+install.bat          :: installs Go 1.25+/Wails v2.12.0/WebView2 if missing, then builds + runs
+run-dashboard.bat    :: starts build\bin\chitchatui.exe (data\ is created next to it)
 ```
+Manual: `wails build -clean -webview2 error` or `.\scripts\bundle-windows.ps1 -Clean`.
 
 Dashboard → Message → choose **EVAChat Flow** → fill **Usernames** (one snap
 handle per line) → Save → Start. First start seeds `data/eva_chat/`; edit
