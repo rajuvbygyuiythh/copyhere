@@ -105,6 +105,16 @@ func recordBotSendStatus(cfg Config, currentUserID string, status int) (bool, er
 			return nil
 		}
 
+		if status == 429 {
+			// platform throttle, not a dead account: remember it, do not count it
+			record.LastFailureStatus = status
+			record.LastFailureAt = now
+			if strings.TrimSpace(record.Status) == "" {
+				record.Status = botStatusAlive
+			}
+			registry.BotUsers[currentUserID] = record
+			return nil
+		}
 		record.SendFailureCount++
 		record.LastFailureStatus = status
 		record.LastFailureAt = now

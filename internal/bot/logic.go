@@ -1161,35 +1161,55 @@ func executeMatchEVAChat(
 
 	sentCount := accountState.SentMessageCounts[target.UserID]
 	session := evaChatSession(&accountState, target.UserID)
+	// Opener policy: most matches the USER speaks first and the bot only
+	// replies (waitingForUserOpener). A silent user is skipped. When the bot
+	// does open, it waits a human delay first instead of firing instantly.
+	waitingForUserOpener := false
 	if !session.Started && !session.Ended {
-		result := evaChatStart(cfg, &accountState, target.UserID, rng)
-		if result.Text == "" {
-			return true, fmt.Errorf("EVAChat opener unavailable: %s", result.Reason)
+		if cfg.pace.botOpensFirst() {
+			if delay := cfg.pace.botOpenDelay(); delay > 0 {
+				logf(cfg, "[pacing] Bot opens this match: waiting %s before the opener.\n", delay.Truncate(time.Second))
+				select {
+				case <-ctx.Done():
+					return true, ctx.Err()
+				case <-time.After(delay):
+				}
+			}
+			result := evaChatStart(cfg, &accountState, target.UserID, rng)
+			if result.Text == "" {
+				return true, fmt.Errorf("EVAChat opener unavailable: %s", result.Reason)
+			}
+			logf(cfg, "[evachat] Sending opener to matched user %s from %s\n", target.Username, result.SourcePool)
+			status, _, err := sendDMMessage(ctx, client, cfg, login, target.ConversationID, result.Text)
+			if err != nil {
+				return true, err
+			}
+			if err := trackBotSendStatus(cfg, currentUserID, status); err != nil {
+				return true, err
+			}
+			if status == 429 {
+				return true, errRateLimited
+			}
+			if status >= 400 {
+				logf(cfg, "[evachat] Failed to send opener to %s. Ending chat.\n", target.Username)
+				return true, nil
+			}
+			if result.HasUsername {
+				accountState.SnapTgSentCount++
+				_ = markUserFlagged(cfg.DataDir, target.UserID)
+			}
+			sentCount++
+			accountState.SentMessageCounts[target.UserID] = sentCount
+			accountState.BaselineDone[target.UserID] = true
+			accountState.BotFirstCount++
+			state[accountKey] = accountState
+			if err := store.SaveJSON(p.BotState, state); err != nil {
+				return true, err
+			}
+			logSendActivity(cfg, currentUserID, target, result.Text)
+		} else {
+			waitingForUserOpener = true
 		}
-		logf(cfg, "[evachat] Sending opener to matched user %s from %s\n", target.Username, result.SourcePool)
-		status, _, err := sendDMMessage(ctx, client, cfg, login, target.ConversationID, result.Text)
-		if err != nil {
-			return true, err
-		}
-		if err := trackBotSendStatus(cfg, currentUserID, status); err != nil {
-			return true, err
-		}
-		if status >= 400 {
-			logf(cfg, "[evachat] Failed to send opener to %s. Ending chat.\n", target.Username)
-			return true, nil
-		}
-		if result.HasUsername {
-			accountState.SnapTgSentCount++
-			_ = markUserFlagged(cfg.DataDir, target.UserID)
-		}
-		sentCount++
-		accountState.SentMessageCounts[target.UserID] = sentCount
-		accountState.BaselineDone[target.UserID] = true
-		state[accountKey] = accountState
-		if err := store.SaveJSON(p.BotState, state); err != nil {
-			return true, err
-		}
-		logSendActivity(cfg, currentUserID, target, result.Text)
 	}
 
 	for {
@@ -1200,7 +1220,12 @@ func executeMatchEVAChat(
 			replyTimeout = cfg.MatchReplyTimeoutMin
 		}
 
-		logf(cfg, "[evachat] Waiting for reply from %s (%.0f seconds timeout)...\n", target.Username, replyTimeout.Seconds())
+		if waitingForUserOpener {
+			replyTimeout = cfg.pace.openerWait()
+			logf(cfg, "[pacing] Letting %s speak first (up to %.0f seconds, silent = skip)...\n", target.Username, replyTimeout.Seconds())
+		} else {
+			logf(cfg, "[evachat] Waiting for reply from %s (%.0f seconds timeout)...\n", target.Username, replyTimeout.Seconds())
+		}
 		replyTimer := time.NewTimer(replyTimeout)
 		var incoming model.Message
 		chatActive := true
@@ -1212,6 +1237,13 @@ func executeMatchEVAChat(
 				replyTimer.Stop()
 				return true, ctx.Err()
 			case <-replyTimer.C:
+				if waitingForUserOpener {
+					logf(cfg, "[pacing] %s stayed silent for %.0f seconds. Skipping to the next match.\n", target.Username, replyTimeout.Seconds())
+					accountState.UserFirstSkipped++
+					state[accountKey] = accountState
+					_ = store.SaveJSON(p.BotState, state)
+					return true, nil
+				}
 				logf(cfg, "[evachat] No reply from %s within %.0f seconds. Finding new match.\n", target.Username, replyTimeout.Seconds())
 				return true, nil
 			case event := <-realtimeEvents:
@@ -1223,6 +1255,11 @@ func executeMatchEVAChat(
 					incoming = model.Message{ID: event.MessageID, Content: event.Content, CreatedAt: event.CreatedAt}
 					incoming.Author.ID = event.UserID
 					logReceiveActivity(cfg, currentUserID, target, incoming.Content)
+					if waitingForUserOpener {
+						waitingForUserOpener = false
+						accountState.UserFirstCount++
+						logf(cfg, "[pacing] %s opened the chat. Replying.\n", target.Username)
+					}
 					break waitLoop
 				}
 				if event.Type == "matchUpdate" && event.Closed {
@@ -1257,6 +1294,10 @@ func executeMatchEVAChat(
 		} else {
 			replyDelay = cfg.ReplyDelayMin
 		}
+		if replyDelay <= 0 && cfg.Pacing.Enabled {
+			// no dashboard delay configured: never answer in the same instant
+			replyDelay = humanReplyDelay(rng, result.Text)
+		}
 		if replyDelay > 0 {
 			select {
 			case <-ctx.Done():
@@ -1272,6 +1313,9 @@ func executeMatchEVAChat(
 		}
 		if err := trackBotSendStatus(cfg, currentUserID, status); err != nil {
 			return true, err
+		}
+		if status == 429 {
+			return true, errRateLimited
 		}
 		if status >= 400 {
 			logf(cfg, "[evachat] Failed to send reply to %s. Ending chat.\n", target.Username)

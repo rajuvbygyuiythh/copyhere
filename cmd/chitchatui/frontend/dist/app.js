@@ -109,6 +109,9 @@ function renderHomeStats(stats) {
   document.getElementById("stat-messages-sent").textContent = String(home.messages_sent || 0);
   document.getElementById("stat-dead-accounts").textContent = String(home.dead_accounts || 0);
   document.getElementById("stat-skipped-accounts").textContent = String(home.skipped_accounts || 0);
+  document.getElementById("stat-user-first").textContent = String(home.user_first_count || 0);
+  document.getElementById("stat-bot-first").textContent = String(home.bot_first_count || 0);
+  document.getElementById("stat-resting-accounts").textContent = String(home.resting_accounts || 0);
 }
 
 function evaAISettings() {
@@ -162,6 +165,19 @@ function fillForms(snapshot) {
   document.getElementById("match-close-wait-max").value = snapshot.general.match_close_wait_max_seconds || 0;
   document.getElementById("reply-delay-min").value = snapshot.general.reply_delay_min_seconds || 0;
   document.getElementById("reply-delay-max").value = snapshot.general.reply_delay_max_seconds || 0;
+  const g = snapshot.general;
+  document.getElementById("pacing-enabled").checked = !g.pacing_disabled;
+  document.getElementById("bot-first-percent").value = g.bot_first_percent ?? 30;
+  document.getElementById("chats-per-hour-max").value = g.chats_per_hour_max || 30;
+  document.getElementById("opener-wait-min").value = g.opener_wait_min_seconds || 45;
+  document.getElementById("opener-wait-max").value = g.opener_wait_max_seconds || 120;
+  document.getElementById("bot-open-delay-min").value = g.bot_open_delay_min_seconds || 8;
+  document.getElementById("bot-open-delay-max").value = g.bot_open_delay_max_seconds || 25;
+  document.getElementById("active-min").value = g.active_min_minutes || 25;
+  document.getElementById("active-max").value = g.active_max_minutes || 40;
+  document.getElementById("rest-min").value = g.rest_min_minutes || 10;
+  document.getElementById("rest-max").value = g.rest_max_minutes || 25;
+  document.getElementById("limit-cooldown").value = g.limit_cooldown_minutes || 20;
   document.getElementById("live-wall-enabled").checked = !snapshot.general.live_wall_disabled;
   document.getElementById("live-wall-port").value = snapshot.general.live_wall_port || "";
   renderBrowserOptions(snapshot.browser_options || [], snapshot.browser.backend || "rod");
@@ -353,6 +369,18 @@ function bindForms() {
       match_close_wait_max_seconds: Number(document.getElementById("match-close-wait-max").value),
       reply_delay_min_seconds: Number(document.getElementById("reply-delay-min").value),
       reply_delay_max_seconds: Number(document.getElementById("reply-delay-max").value),
+      pacing_disabled: !document.getElementById("pacing-enabled").checked,
+      bot_first_percent: Number(document.getElementById("bot-first-percent").value),
+      chats_per_hour_max: Number(document.getElementById("chats-per-hour-max").value),
+      opener_wait_min_seconds: Number(document.getElementById("opener-wait-min").value),
+      opener_wait_max_seconds: Number(document.getElementById("opener-wait-max").value),
+      bot_open_delay_min_seconds: Number(document.getElementById("bot-open-delay-min").value),
+      bot_open_delay_max_seconds: Number(document.getElementById("bot-open-delay-max").value),
+      active_min_minutes: Number(document.getElementById("active-min").value),
+      active_max_minutes: Number(document.getElementById("active-max").value),
+      rest_min_minutes: Number(document.getElementById("rest-min").value),
+      rest_max_minutes: Number(document.getElementById("rest-max").value),
+      limit_cooldown_minutes: Number(document.getElementById("limit-cooldown").value),
       live_wall_disabled: !document.getElementById("live-wall-enabled").checked,
       live_wall_port: Number(document.getElementById("live-wall-port").value) || 0,
     });

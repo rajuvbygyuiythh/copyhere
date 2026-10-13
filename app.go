@@ -205,6 +205,10 @@ func (a *App) homeStats(
 	if err != nil {
 		return model.HomeStats{}, err
 	}
+	userFirst, botFirst, err := a.countOpeners()
+	if err != nil {
+		return model.HomeStats{}, err
+	}
 
 	botAccounts := len(workers)
 	if runningAccounts+accountCounts.Dead > botAccounts {
@@ -220,7 +224,51 @@ func (a *App) homeStats(
 		MessagesSent:    messagesSent,
 		SnapTgSentCount: snapTgSentCount,
 		SkippedAccounts: skippedAccounts,
+		UserFirstCount:  userFirst,
+		BotFirstCount:   botFirst,
+		RestingAccounts: bot.RestingWorkerCount(),
 	}, nil
+}
+
+// countOpeners sums who-spoke-first counters across all profile states.
+func (a *App) countOpeners() (int, int, error) {
+	statePaths, err := filepath.Glob(filepath.Join(a.dataDir, "profiles", "*", "bot_state.json"))
+	if err != nil {
+		return 0, 0, err
+	}
+	userFirst, botFirst := 0, 0
+	for _, statePath := range statePaths {
+		var state model.BotState
+		ok, err := store.LoadJSON(statePath, &state)
+		if err != nil || !ok {
+			continue
+		}
+		for _, accountState := range state {
+			userFirst += accountState.UserFirstCount
+			botFirst += accountState.BotFirstCount
+		}
+	}
+	return userFirst, botFirst, nil
+}
+
+func pacingFromSettings(g model.GeneralSettings) bot.Pacing {
+	g.ApplyPacingDefaults()
+	sec := func(v int) time.Duration { return time.Duration(v) * time.Second }
+	min := func(v int) time.Duration { return time.Duration(v) * time.Minute }
+	return bot.Pacing{
+		Enabled:         !g.PacingDisabled,
+		BotFirstPercent: g.BotFirstPercent,
+		OpenerWaitMin:   sec(g.OpenerWaitMinSeconds),
+		OpenerWaitMax:   sec(g.OpenerWaitMaxSeconds),
+		BotOpenDelayMin: sec(g.BotOpenDelayMinSecs),
+		BotOpenDelayMax: sec(g.BotOpenDelayMaxSecs),
+		ActiveMin:       min(g.ActiveMinMinutes),
+		ActiveMax:       min(g.ActiveMaxMinutes),
+		RestMin:         min(g.RestMinMinutes),
+		RestMax:         min(g.RestMaxMinutes),
+		ChatsPerHourMax: g.ChatsPerHourMax,
+		LimitCooldown:   min(g.LimitCooldownMinutes),
+	}
 }
 
 func (a *App) countSentMessages() (int, int, int, int, error) {
@@ -405,12 +453,19 @@ func (a *App) SaveGeneralSettings(settings model.GeneralSettings) error {
 	if err := a.uiStore.SaveGeneralSettings(settings); err != nil {
 		return err
 	}
+	settings.ApplyPacingDefaults()
 	a.log("info", fmt.Sprintf(
-		"Timing settings saved. Poll=%ds-%ds Action=%ds-%ds",
+		"Timing settings saved. Poll=%ds-%ds Action=%ds-%ds | Pacing %s: bot-first %d%%, user wait %d-%ds, shift %d-%dmin / rest %d-%dmin, %d chats/h",
 		settings.PollMinSeconds,
 		settings.PollMaxSeconds,
 		settings.ActionMinSeconds,
 		settings.ActionMaxSeconds,
+		map[bool]string{true: "off", false: "on"}[settings.PacingDisabled],
+		settings.BotFirstPercent,
+		settings.OpenerWaitMinSeconds, settings.OpenerWaitMaxSeconds,
+		settings.ActiveMinMinutes, settings.ActiveMaxMinutes,
+		settings.RestMinMinutes, settings.RestMaxMinutes,
+		settings.ChatsPerHourMax,
 	))
 	return nil
 }
@@ -643,6 +698,7 @@ func (a *App) StopBot() error {
 
 	cancel()
 	a.clearActiveWorkers()
+	bot.ClearAllWorkerPhases()
 	a.log("info", "Stopping all bot workers.")
 	a.emitStatus(false)
 	return nil
@@ -784,6 +840,7 @@ func (a *App) buildBotConfigs() ([]bot.Config, error) {
 		cfg.MatchCloseWaitMax = time.Duration(generalSettings.MatchCloseWaitMaxSeconds) * time.Second
 		cfg.ReplyDelayMin = time.Duration(generalSettings.ReplyDelayMinSeconds) * time.Second
 		cfg.ReplyDelayMax = time.Duration(generalSettings.ReplyDelayMaxSeconds) * time.Second
+		cfg.Pacing = pacingFromSettings(generalSettings)
 
 		profileName := assignment.Profile
 		proxyLabel := "direct"

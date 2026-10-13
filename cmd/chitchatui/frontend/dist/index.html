@@ -98,6 +98,18 @@
             <span>Skip</span>
             <strong id="stat-skipped-accounts">0</strong>
           </div>
+          <div class="stat-capsule" title="Matched chats where the user wrote first and the bot only replied">
+            <span>User first</span>
+            <strong id="stat-user-first">0</strong>
+          </div>
+          <div class="stat-capsule" title="Matched chats the bot opened">
+            <span>Bot first</span>
+            <strong id="stat-bot-first">0</strong>
+          </div>
+          <div class="stat-capsule warning" title="Workers in a shift rest / platform-limit cooldown (DM replies continue)">
+            <span>Resting</span>
+            <strong id="stat-resting-accounts">0</strong>
+          </div>
         </div>
 
         <div id="log-list" class="log-list"></div>
@@ -328,6 +340,70 @@
             <input type="number" id="reply-delay-max" min="0" placeholder="0 (no wait)">
           </label>
 
+          <div class="form-section-title" style="grid-column: 1 / -1; margin-top: 10px; font-weight: 600;">Human pacing (anti-limit / anti-bot)</div>
+
+          <label class="checkbox-row" style="grid-column: 1 / -1;">
+            <input type="checkbox" id="pacing-enabled">
+            <span>Enable human pacing: let users open most chats, work in shifts, cool down on platform limits</span>
+          </label>
+
+          <label>
+            <span>Bot opens first (% of matches, rest wait for the user)</span>
+            <input type="number" id="bot-first-percent" min="0" max="100" placeholder="30">
+          </label>
+
+          <label>
+            <span>Max matched chats per hour (per account)</span>
+            <input type="number" id="chats-per-hour-max" min="1" placeholder="30">
+          </label>
+
+          <label>
+            <span>Wait for user to speak min seconds (silent = skip)</span>
+            <input type="number" id="opener-wait-min" min="5" placeholder="45">
+          </label>
+
+          <label>
+            <span>Wait for user to speak max seconds</span>
+            <input type="number" id="opener-wait-max" min="5" placeholder="120">
+          </label>
+
+          <label>
+            <span>Bot opener delay min seconds</span>
+            <input type="number" id="bot-open-delay-min" min="0" placeholder="8">
+          </label>
+
+          <label>
+            <span>Bot opener delay max seconds</span>
+            <input type="number" id="bot-open-delay-max" min="0" placeholder="25">
+          </label>
+
+          <label>
+            <span>Shift active min minutes (limit hits at ~40-60)</span>
+            <input type="number" id="active-min" min="1" placeholder="25">
+          </label>
+
+          <label>
+            <span>Shift active max minutes</span>
+            <input type="number" id="active-max" min="1" placeholder="40">
+          </label>
+
+          <label>
+            <span>Rest min minutes</span>
+            <input type="number" id="rest-min" min="1" placeholder="10">
+          </label>
+
+          <label>
+            <span>Rest max minutes</span>
+            <input type="number" id="rest-max" min="1" placeholder="25">
+          </label>
+
+          <label>
+            <span>Cooldown after platform limit (429) minutes</span>
+            <input type="number" id="limit-cooldown" min="1" placeholder="20">
+          </label>
+
+          <div class="form-section-title" style="grid-column: 1 / -1; margin-top: 10px; font-weight: 600;">Live Wall</div>
+
           <label class="checkbox-row">
             <input type="checkbox" id="live-wall-enabled">
             <span>Open Live Wall in browser when the bot starts (sci-fi full-screen mirror of Home)</span>
@@ -347,6 +423,6 @@
     </main>
   </div>
 
-  <script src="./app.js?v=3"></script>
+  <script src="./app.js?v=4"></script>
 </body>
 </html>

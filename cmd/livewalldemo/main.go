@@ -79,6 +79,12 @@ func main() {
 			reply := out[rand.Intn(len(out))]
 			push("activity", fmt.Sprintf("SEND | %s -> %s | message: %s", b, us, reply))
 			stats.MessagesSent++
+			if rand.Intn(10) < 7 {
+				stats.UserFirstCount++
+			} else {
+				stats.BotFirstCount++
+			}
+			stats.RestingAccounts = 2 + rand.Intn(2)
 			if rand.Intn(4) == 0 {
 				stats.TrafficUsers++
 			}

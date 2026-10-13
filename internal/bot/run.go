@@ -54,6 +54,9 @@ type Config struct {
 	ProxyRotator         *proxy.Rotator
 	Logf                 LogFunc
 	Activityf            LogFunc
+	Pacing               Pacing
+
+	pace *pacer // per-worker shift/opener state, created in Run
 }
 
 type paths struct {
@@ -100,6 +103,14 @@ func Run(ctx context.Context, cfg Config) error {
 		return err
 	}
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	cfg.pace = newPacer(cfg.Pacing, rng)
+	SetWorkerPhase(cfg.Profile, PhaseActive)
+	defer ClearWorkerPhase(cfg.Profile)
+	if cfg.Pacing.Enabled {
+		logf(cfg, "Human pacing on: bot opens %d%% of matches, shift %s-%s active / %s-%s rest, max %d chats/hour\n",
+			cfg.Pacing.BotFirstPercent, cfg.Pacing.ActiveMin.Truncate(time.Minute), cfg.Pacing.ActiveMax.Truncate(time.Minute),
+			cfg.Pacing.RestMin.Truncate(time.Minute), cfg.Pacing.RestMax.Truncate(time.Minute), cfg.Pacing.ChatsPerHourMax)
+	}
 	realtimeEvents, stopRealtime := startRealtimeListener(ctx, cfg, login, currentUserID)
 	defer func() {
 		if stopRealtime != nil {
@@ -111,6 +122,7 @@ func Run(ctx context.Context, cfg Config) error {
 	logf(cfg, "Cycle delay: %s to %s\n", cfg.PollMin, cfg.PollMax)
 	logf(cfg, "Action delay: %s to %s\n", cfg.ActionMin, cfg.ActionMax)
 
+	lastPhase := PhaseActive
 	for {
 		client := api.New(login, cfg.AppURL, cfg.ProxyRotator)
 
@@ -125,16 +137,36 @@ func Run(ctx context.Context, cfg Config) error {
 		}
 
 		if cfg.MatchWhenIdle && !workDone {
-			logln(cfg, "No new messages or relationships to process, attempting to find a new chat partner.")
-			chatted, err := matchAndChat(ctx, client, cfg, p, login, currentUserID, rng, realtimeEvents)
-			if err != nil {
-				logf(cfg, "Match and chat failed: %v\n", err)
-				// Don't return, just log and continue to next cycle wait.
+			allowed, until, phase, reason := cfg.pace.gate()
+			if phase != lastPhase {
+				SetWorkerPhase(cfg.Profile, phase)
+				if allowed {
+					logln(cfg, "[pacing] Shift active again. Looking for new matches.")
+				} else {
+					logf(cfg, "[pacing] %s: pausing new matches until %s (DM replies continue).\n", reason, until.Local().Format("15:04:05"))
+				}
+				lastPhase = phase
 			}
-			if chatted {
-				// If we had a match and chatted, we can immediately try for another match
-				// instead of waiting for the poll delay.
-				continue
+			if allowed {
+				logln(cfg, "No new messages or relationships to process, attempting to find a new chat partner.")
+				chatted, err := matchAndChat(ctx, client, cfg, p, login, currentUserID, rng, realtimeEvents)
+				if err != nil {
+					if errors.Is(err, errRateLimited) {
+						until := cfg.pace.noteLimited()
+						logf(cfg, "[pacing] Platform limit detected. Cooling down until %s.\n", until.Local().Format("15:04:05"))
+					} else {
+						logf(cfg, "Match and chat failed: %v\n", err)
+					}
+					// Don't return, just log and continue to next cycle wait.
+				}
+				if chatted {
+					cfg.pace.noteChat()
+					if stillAllowed, _, _, _ := cfg.pace.gate(); stillAllowed {
+						// If we had a match and chatted, we can immediately try for another match
+						// instead of waiting for the poll delay.
+						continue
+					}
+				}
 			}
 		}
 
@@ -268,6 +300,9 @@ func match(ctx context.Context, client *api.Client, cfg Config) error {
 		return fmt.Errorf("match request failed: %w", err)
 	}
 
+	if resp.Status == 429 {
+		return fmt.Errorf("match request returned 429: %w", errRateLimited)
+	}
 	if !resp.OK {
 		return fmt.Errorf("match request returned non-OK status %d: %s", resp.Status, resp.Text)
 	}

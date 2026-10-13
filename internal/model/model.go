@@ -236,6 +236,10 @@ type AccountState struct {
 	EVAChatSessions   map[string]EVAChatSession `json:"eva_chat_sessions,omitempty"`
 	SnapTgSentCount   int                       `json:"snap_tg_sent_count,omitempty"`
 	SkippedUsersCount int                       `json:"skipped_users_count,omitempty"`
+	// Opener policy counters (who spoke first in matched chats).
+	UserFirstCount   int `json:"user_first_count,omitempty"`
+	BotFirstCount    int `json:"bot_first_count,omitempty"`
+	UserFirstSkipped int `json:"user_first_skipped,omitempty"`
 }
 
 type BotState map[string]AccountState

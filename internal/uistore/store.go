@@ -175,6 +175,7 @@ func (s *Store) LoadGeneralSettings() (model.GeneralSettings, error) {
 	if settings.MatchReplyTimeoutMaxSeconds < settings.MatchReplyTimeoutMinSeconds {
 		settings.MatchReplyTimeoutMaxSeconds = settings.MatchReplyTimeoutMinSeconds
 	}
+	settings.ApplyPacingDefaults()
 	if settings.MatchCloseWaitMaxSeconds < settings.MatchCloseWaitMinSeconds {
 		settings.MatchCloseWaitMaxSeconds = settings.MatchCloseWaitMinSeconds
 	}

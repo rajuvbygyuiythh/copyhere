@@ -66,6 +66,94 @@ type GeneralSettings struct {
 	// enabled on the default port so existing settings need no migration.
 	LiveWallDisabled bool `json:"live_wall_disabled,omitempty"`
 	LiveWallPort     int  `json:"live_wall_port,omitempty"`
+	// Human pacing (opener policy + shift pacing). Zero values are replaced
+	// by DefaultPacing() when loaded, so old settings need no migration.
+	PacingDisabled       bool `json:"pacing_disabled,omitempty"`
+	BotFirstPercent      int  `json:"bot_first_percent,omitempty"`
+	OpenerWaitMinSeconds int  `json:"opener_wait_min_seconds,omitempty"`
+	OpenerWaitMaxSeconds int  `json:"opener_wait_max_seconds,omitempty"`
+	BotOpenDelayMinSecs  int  `json:"bot_open_delay_min_seconds,omitempty"`
+	BotOpenDelayMaxSecs  int  `json:"bot_open_delay_max_seconds,omitempty"`
+	ActiveMinMinutes     int  `json:"active_min_minutes,omitempty"`
+	ActiveMaxMinutes     int  `json:"active_max_minutes,omitempty"`
+	RestMinMinutes       int  `json:"rest_min_minutes,omitempty"`
+	RestMaxMinutes       int  `json:"rest_max_minutes,omitempty"`
+	ChatsPerHourMax      int  `json:"chats_per_hour_max,omitempty"`
+	LimitCooldownMinutes int  `json:"limit_cooldown_minutes,omitempty"`
+}
+
+// PacingDefaults are the human-pacing values used when a field is 0.
+// ChitChat throttles an account after roughly 40-60 minutes of non-stop
+// chatting, so a shift is kept well below that.
+type PacingDefaults struct {
+	BotFirstPercent      int
+	OpenerWaitMinSeconds int
+	OpenerWaitMaxSeconds int
+	BotOpenDelayMinSecs  int
+	BotOpenDelayMaxSecs  int
+	ActiveMinMinutes     int
+	ActiveMaxMinutes     int
+	RestMinMinutes       int
+	RestMaxMinutes       int
+	ChatsPerHourMax      int
+	LimitCooldownMinutes int
+}
+
+func DefaultPacing() PacingDefaults {
+	return PacingDefaults{
+		BotFirstPercent:      30,
+		OpenerWaitMinSeconds: 45,
+		OpenerWaitMaxSeconds: 120,
+		BotOpenDelayMinSecs:  8,
+		BotOpenDelayMaxSecs:  25,
+		ActiveMinMinutes:     25,
+		ActiveMaxMinutes:     40,
+		RestMinMinutes:       10,
+		RestMaxMinutes:       25,
+		ChatsPerHourMax:      30,
+		LimitCooldownMinutes: 20,
+	}
+}
+
+// ApplyPacingDefaults fills zero pacing fields and fixes inverted ranges.
+func (g *GeneralSettings) ApplyPacingDefaults() {
+	d := DefaultPacing()
+	if g.BotFirstPercent <= 0 && g.OpenerWaitMinSeconds <= 0 && g.OpenerWaitMaxSeconds <= 0 {
+		g.BotFirstPercent = d.BotFirstPercent
+	}
+	if g.BotFirstPercent > 100 {
+		g.BotFirstPercent = 100
+	}
+	if g.OpenerWaitMinSeconds <= 0 {
+		g.OpenerWaitMinSeconds = d.OpenerWaitMinSeconds
+	}
+	if g.OpenerWaitMaxSeconds < g.OpenerWaitMinSeconds {
+		g.OpenerWaitMaxSeconds = max(g.OpenerWaitMinSeconds, d.OpenerWaitMaxSeconds)
+	}
+	if g.BotOpenDelayMinSecs <= 0 {
+		g.BotOpenDelayMinSecs = d.BotOpenDelayMinSecs
+	}
+	if g.BotOpenDelayMaxSecs < g.BotOpenDelayMinSecs {
+		g.BotOpenDelayMaxSecs = max(g.BotOpenDelayMinSecs, d.BotOpenDelayMaxSecs)
+	}
+	if g.ActiveMinMinutes <= 0 {
+		g.ActiveMinMinutes = d.ActiveMinMinutes
+	}
+	if g.ActiveMaxMinutes < g.ActiveMinMinutes {
+		g.ActiveMaxMinutes = max(g.ActiveMinMinutes, d.ActiveMaxMinutes)
+	}
+	if g.RestMinMinutes <= 0 {
+		g.RestMinMinutes = d.RestMinMinutes
+	}
+	if g.RestMaxMinutes < g.RestMinMinutes {
+		g.RestMaxMinutes = max(g.RestMinMinutes, d.RestMaxMinutes)
+	}
+	if g.ChatsPerHourMax <= 0 {
+		g.ChatsPerHourMax = d.ChatsPerHourMax
+	}
+	if g.LimitCooldownMinutes <= 0 {
+		g.LimitCooldownMinutes = d.LimitCooldownMinutes
+	}
 }
 
 type HomeStats struct {
@@ -77,6 +165,9 @@ type HomeStats struct {
 	MessagesSent    int `json:"messages_sent"`
 	SnapTgSentCount int `json:"snap_tg_sent_count"`
 	SkippedAccounts int `json:"skipped_accounts"`
+	UserFirstCount  int `json:"user_first_count"`
+	BotFirstCount   int `json:"bot_first_count"`
+	RestingAccounts int `json:"resting_accounts"`
 }
 
 type LogEntry struct {
@@ -131,7 +222,7 @@ func DefaultProxySettings() ProxySettings {
 }
 
 func DefaultGeneralSettings() GeneralSettings {
-	return GeneralSettings{
+	g := GeneralSettings{
 		PollMinSeconds:              20,
 		PollMaxSeconds:              45,
 		ActionMinSeconds:            20,
@@ -143,6 +234,8 @@ func DefaultGeneralSettings() GeneralSettings {
 		ReplyDelayMinSeconds:        0,
 		ReplyDelayMaxSeconds:        0,
 	}
+	g.ApplyPacingDefaults()
+	return g
 }
 
 func NewMessageSettings(sequence string, usernames string) MessageSettings {
