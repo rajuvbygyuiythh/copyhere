@@ -1,8 +1,17 @@
 # apitest.config.txt — settings for apitest.exe (this file stays on your PC, it is git-ignored)
 # Any OpenAI-compatible API works. Featherless example:
 BASE_URL=https://api.featherless.ai/v1
-MODEL=deepseek-ai/DeepSeek-V4.1-Flash
+MODEL=meta-llama/Llama-3.3-70B-Instruct
 API_KEY=your-featherless-api-key
+
+# the snap username the bot shares (the tool appends it itself, the AI never writes it)
+SNAP_USERNAME=yoursnapname
+
+# funnel: at which bot reply number the snap is shared, by the stranger's interest
+# HOT = horny words / very engaged, WARM = flirty / asking about you, COLD = normal / low interest
+SHARE_HOT=4
+SHARE_WARM=6
+SHARE_COLD=8
 
 # other providers:
 #   OpenAI      BASE_URL=https://api.openai.com/v1                                 MODEL=gpt-4o-mini
@@ -19,8 +28,9 @@ TIMEOUT_SEC=60
 #   EXTRA_JSON={"chat_template_kwargs":{"enable_thinking":false}}
 #   EXTRA_JSON={"thinking":{"type":"disabled"}}
 #   EXTRA_JSON={"reasoning":{"effort":"none"}}
-# or simply use a non-reasoning instruct model, e.g. on Featherless:
-#   MODEL=meta-llama/Llama-3.3-70B-Instruct
+# reasoning model example (needs thinking disabled or a big MAX_TOKENS):
+#   MODEL=deepseek-ai/DeepSeek-V4.1-Flash
+# other non-reasoning instruct models on Featherless:
 #   MODEL=Qwen/Qwen2.5-72B-Instruct
 MAX_TOKENS=1024
 TEMPERATURE=0.9

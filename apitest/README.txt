@@ -4,8 +4,11 @@ apitest — standalone API chat tester (NOT connected to the bot code)
 2. open apitest.config.txt, paste API_KEY (and BASE_URL / MODEL if not Featherless)
 3. apitest.bat ping                  -> one raw request: shows HTTP status + JSON  (API works?)
 4. apitest.bat                       -> chat: you type as the stranger, "eva>" is the AI
-   /new  /system  /prompt  /history  /quit
+   /new  /state  /system  /prompt  /history  /quit
 5. edit persona.txt to change how she talks, then /new
+6. PLAN.md explains the funnel "director": interest score -> HOT/WARM/COLD ->
+   snap shared at reply 4 / 6 / 8 (SHARE_* in config), moods, double lines.
+   Set SNAP_USERNAME in apitest.config.txt to see the real share line.
 
 Each reply line shows: seconds taken, tokens, persona, and a WARN if the
 output would fail the bot's rules (too long, @/link, <think> reasoning).
