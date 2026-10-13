@@ -51,6 +51,11 @@ type Options struct {
 	NoShareMax     int
 	NoShareStrict  bool
 	AutoNoThink    bool
+
+	// RulesPath, when set, is the config_rules.json to load instead of
+	// <dataRoot>/config_rules.json (the bot passes FindProjectRules() so the
+	// lab and the bot share cmd/apitest/config_rules.json).
+	RulesPath string
 }
 
 // Defaults mirror apitest.config.example.txt.
@@ -204,7 +209,10 @@ func New(dataRoot string, opt Options) (*Engine, error) {
 		return nil, fmt.Errorf("API Chat: the API key is empty")
 	}
 	var warns []string
-	rulesPath := join(dataRoot, RulesFile)
+	rulesPath := strings.TrimSpace(opt.RulesPath)
+	if rulesPath == "" {
+		rulesPath = join(dataRoot, RulesFile)
+	}
 	rules, rerr := LoadRules(rulesPath)
 	if rerr == nil {
 		opt = rules.Apply(opt)
@@ -229,12 +237,23 @@ func New(dataRoot string, opt Options) (*Engine, error) {
 func join(dir, name string) string { return filepath.Join(dir, name) }
 
 // EnsureData creates dir and seeds the editable files that are missing
-// (persona.txt, snap_share.txt, snap_hint.txt). Existing files are kept.
-func EnsureData(dir string) error {
+// (persona.txt, snap_share.txt, snap_hint.txt, config_rules.json). Existing
+// files are kept. Names in skip are not seeded (the bot skips
+// config_rules.json when the project copy in cmd/apitest is used).
+func EnsureData(dir string, skip ...string) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
 	for name, content := range DataFiles {
+		skipped := false
+		for _, s := range skip {
+			if s == name {
+				skipped = true
+			}
+		}
+		if skipped {
+			continue
+		}
 		path := filepath.Join(dir, name)
 		if _, err := os.Stat(path); err == nil {
 			continue

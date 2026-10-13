@@ -12,8 +12,9 @@ the dashboard "API Chat" mode and this lab, so what you test here is what the bo
    (one style per line, %username% required, "a | b" = two messages;
    styles rotate like a shuffled deck so no pattern repeats; /share previews)
 7. funnel rules: config_rules.json (share turns HOT/WARM/COLD, no-snap %, hint %,
-   strict) - SAME file format as the bot's data\api_chat\config_rules.json; when it
-   exists it overrides the SHARE_* / NO_SHARE_* / HINT_PERCENT keys below.
+   strict) - THE SAME FILE is read by the main bot (it looks for
+   cmd\apitest\config_rules.json from its working / exe folder). When present it
+   overrides the SHARE_* / NO_SHARE_* / HINT_PERCENT keys below.
    share mix (anti-spam): out of 10 strangers 3 never get
    the snap (3-4 replies, then the bot closes the chat), 7 do. of those, 60%
    get a 👻 hint first (snap_hint.txt, no username) - if the stranger asks /

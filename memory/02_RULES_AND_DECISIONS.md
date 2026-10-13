@@ -88,4 +88,7 @@
   except the API Chat panel. EVAChat Flow = TXT only.
 - Owner: no "spammy" option rows in the dashboard. Funnel/anti-spam knobs are
   file-only (`config_rules.json`); dashboard keeps connection fields only.
+- Funnel rules = ONE file `cmd/apitest/config_rules.json` for bot + lab
+  (owner rejected the two-file setup). `data/api_chat/config_rules.json` is
+  only a fallback when the project tree is not found.
 

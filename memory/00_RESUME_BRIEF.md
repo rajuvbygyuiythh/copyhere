@@ -15,6 +15,13 @@ API and pastes output; agent fixes bugs from that output.
 
 ## Last thing done (most recent turn first)
 
+0000. Owner: "one physical file, fix" → bot now reads
+      **`cmd\apitest\config_rules.json` directly** (`apichat.FindProjectRules()`
+      walks up ≤6 levels from cwd and exe dir; `Options.RulesPath`;
+      `EnsureData(dir, skip...)` does not seed a second copy into
+      `data\api_chat\` when the project file exists). Fallback to
+      `data\api_chat\config_rules.json` only if the project tree is absent.
+
 000. Owner: dashboard must stay clean → funnel knobs (share HOT/WARM/COLD,
      no-snap %, hint %, min/max, strict) REMOVED from the API Chat panel and
      from `MessageSettings`; they live in **`config_rules.json`**

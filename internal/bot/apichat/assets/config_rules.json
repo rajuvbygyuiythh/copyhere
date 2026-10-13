@@ -1,5 +1,5 @@
 {
-  "_help": "API Chat funnel rules. Edit, save, restart the bot (or the lab). Same file format for the bot (data/api_chat/config_rules.json) and the lab (cmd/apitest/config_rules.json).",
+  "_help": "API Chat funnel rules - ONE file for the bot and the apitest lab: cmd/apitest/config_rules.json. Edit, save, restart the bot (or the lab). The bot only falls back to data/api_chat/config_rules.json when the project folder cannot be found.",
   "_share_turn": "bot reply number at which the snap is shared, by the stranger's interest (HOT = horny / very engaged, WARM = flirty / curious, COLD = normal / low). Smaller = earlier. If the stranger asks for the snap himself it is shared earlier.",
   "share_hot": 4,
   "share_warm": 6,

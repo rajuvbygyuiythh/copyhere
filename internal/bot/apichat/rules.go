@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -99,6 +100,39 @@ func (r Rules) String() string {
 	}
 	return fmt.Sprintf("share at HOT %d / WARM %d / COLD %d | no-snap %d%% (leave after %d-%d replies, strict %s) | hint first %d%%",
 		r.ShareHot, r.ShareWarm, r.ShareCold, r.NoSharePercent, r.NoShareMin, r.NoShareMax, strict, r.HintPercent)
+}
+
+// ProjectRulesRel is the one shared rules file inside the project tree.
+var ProjectRulesRel = filepath.Join("cmd", "apitest", RulesFile)
+
+// FindProjectRules looks for cmd/apitest/config_rules.json by walking up
+// (max 6 levels) from the working directory and from the executable's
+// directory, so the bot (build/bin/chitchatui.exe, started from the project
+// root or double-clicked) and the lab (cmd/apitest/apitest.exe) find the SAME
+// file. Returns "" when the project tree is not around (exe copied away).
+func FindProjectRules() string {
+	var starts []string
+	if wd, err := os.Getwd(); err == nil {
+		starts = append(starts, wd)
+	}
+	if exe, err := os.Executable(); err == nil {
+		starts = append(starts, filepath.Dir(exe))
+	}
+	for _, start := range starts {
+		dir := start
+		for i := 0; i < 6; i++ {
+			candidate := filepath.Join(dir, ProjectRulesRel)
+			if st, err := os.Stat(candidate); err == nil && !st.IsDir() {
+				return candidate
+			}
+			parent := filepath.Dir(dir)
+			if parent == dir {
+				break
+			}
+			dir = parent
+		}
+	}
+	return ""
 }
 
 // rulesSource describes where the active rules came from (for logs).

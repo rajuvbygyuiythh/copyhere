@@ -85,4 +85,8 @@ Format: date · commit(s) · what · why/notes. Older history condensed.
   (file wins), `Describe()` shows rules + source; lab `LabMain` loads it
   next to the exe; model/bridge/HTML/JS stripped of `api_*` funnel fields;
   tests `rules_test.go`. offline_typecheck green.
+- Owner: "fix the two-file note" → single shared file
+  `cmd/apitest/config_rules.json`: `FindProjectRules()`, `Options.RulesPath`,
+  `EnsureData(dir, skip...)`, `APIChatRulesPath()` in api_chat.go; UI note,
+  README, docs updated; test `TestRulesPathOptionAndProjectLookup`.
 

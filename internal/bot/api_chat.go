@@ -24,13 +24,26 @@ import (
 // snap_share.txt, snap_hint.txt, config_rules.json).
 const APIChatDataDirName = "api_chat"
 
-// EnsureAPIChatData seeds data/api_chat/ and returns its path.
+// EnsureAPIChatData seeds data/api_chat/ and returns its path. When the
+// project tree is around, the funnel rules file is NOT copied there: the
+// single shared file is cmd/apitest/config_rules.json (see APIChatRulesPath).
 func EnsureAPIChatData(dataDir string) (string, error) {
 	dir := filepath.Join(dataDir, APIChatDataDirName)
-	if err := apichat.EnsureData(dir); err != nil {
+	var skip []string
+	if APIChatRulesPath() != "" {
+		skip = append(skip, apichat.RulesFile)
+	}
+	if err := apichat.EnsureData(dir, skip...); err != nil {
 		return "", err
 	}
 	return dir, nil
+}
+
+// APIChatRulesPath is the rules file the bot uses: cmd/apitest/config_rules.json
+// when the project tree is found (same file as the lab), otherwise "" which
+// makes the engine fall back to data/api_chat/config_rules.json.
+func APIChatRulesPath() string {
+	return apichat.FindProjectRules()
 }
 
 // APIChatOptions maps dashboard settings to engine options: only the API
@@ -41,6 +54,7 @@ func APIChatOptions(settings model.MessageSettings) apichat.Options {
 	opt.BaseURL = strings.TrimSpace(settings.AIBaseURL)
 	opt.APIKey = strings.TrimSpace(settings.AIAPIKey)
 	opt.Model = strings.TrimSpace(settings.AIModel)
+	opt.RulesPath = APIChatRulesPath()
 	return opt
 }
 

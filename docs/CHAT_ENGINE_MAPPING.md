@@ -172,8 +172,9 @@ no-usernames closer, adapter username rendering, custom category auto-join.
 Dashboard → Message → **API Chat** (4th mode). The AI writes every line; the
 built-in director decides the funnel (HOT/WARM/COLD share turn 4/6/8, 30%
 no-share chats, 60/40 hint/direct) — all of those knobs are in
-`data/api_chat/config_rules.json` (not in the dashboard; same format as
-`cmd/apitest/config_rules.json`). Snap handle lines come from
+ONE file, `cmd/apitest/config_rules.json`, read by both the bot (found by
+walking up from the working / exe directory) and the lab; the bot falls back
+to `data/api_chat/config_rules.json` only when the project tree is absent. Snap handle lines come from
 `data/api_chat/snap_share.txt` (never from the AI), hints from
 `snap_hint.txt`, persona from `persona.txt`; usernames from the dashboard
 list (one per stranger, shuffled deck). API base URL / model / key are stored

@@ -57,3 +57,48 @@ func TestEmbeddedRulesParse(t *testing.T) {
 		t.Fatalf("embedded config_rules.json must equal DefaultRules: %v %+v", err, r)
 	}
 }
+
+func TestRulesPathOptionAndProjectLookup(t *testing.T) {
+	root := t.TempDir()
+	proj := filepath.Join(root, "cmd", "apitest")
+	if err := os.MkdirAll(proj, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(proj, RulesFile), []byte(`{"share_hot":1,"share_warm":2,"share_cold":3,"no_share_percent":5,"hint_percent":7,"no_share_min_replies":1,"no_share_max_replies":1}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// explicit path wins over <dataRoot>/config_rules.json
+	data := t.TempDir()
+	if err := EnsureData(data); err != nil {
+		t.Fatal(err)
+	}
+	opt := Defaults()
+	opt.APIKey, opt.RulesPath = "k", filepath.Join(proj, RulesFile)
+	e, err := New(data, opt)
+	if err != nil || e.Rules().ShareHot != 1 || e.Rules().HintPercent != 7 {
+		t.Fatalf("RulesPath not used: %v %+v", err, e.Rules())
+	}
+	// lookup walks up from the working directory (build/bin like the exe)
+	deep := filepath.Join(root, "build", "bin")
+	if err := os.MkdirAll(deep, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	wd, _ := os.Getwd()
+	defer os.Chdir(wd)
+	if err := os.Chdir(deep); err != nil {
+		t.Fatal(err)
+	}
+	got := FindProjectRules()
+	want := filepath.Join(proj, RulesFile)
+	if gotR, _ := filepath.EvalSymlinks(got); gotR != func() string { w, _ := filepath.EvalSymlinks(want); return w }() {
+		t.Fatalf("FindProjectRules = %q, want %q", got, want)
+	}
+	// skip list keeps the data folder free of a second rules file
+	data2 := t.TempDir()
+	if err := EnsureData(data2, RulesFile); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(data2, RulesFile)); !os.IsNotExist(err) {
+		t.Fatal("config_rules.json must not be seeded when skipped")
+	}
+}

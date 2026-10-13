@@ -224,7 +224,7 @@
               </div>
             </div>
             <div class="hint-text" style="margin-bottom: 10px;">
-              <strong>Funnel rules</strong> (when the snap is shared, % of chats with no snap, hint-first %) are not dashboard settings — edit <code>data\api_chat\config_rules.json</code> (button above opens the folder) and restart the bot. The same file format is used by the lab in <code>cmd\apitest\config_rules.json</code>. The Test API result shows the rules that were loaded.
+              <strong>Funnel rules</strong> (when the snap is shared, % of chats with no snap, hint-first %) are not dashboard settings — edit ONE file: <code>cmd\apitest\config_rules.json</code> (used by the bot and by the apitest lab), then restart the bot. The Test API result and the start log show the rules that were loaded and from which file. (Only if the project folder is not found does the bot fall back to <code>data\api_chat\config_rules.json</code>.)
             </div>
           </div>
 
