@@ -6,6 +6,9 @@ apitest — standalone API chat tester (NOT connected to the bot code)
 4. apitest.bat                       -> chat: you type as the stranger, "eva>" is the AI
    /new  /state  /system  /prompt  /history  /quit
 5. edit persona.txt to change how she talks, then /new
+6. edit snap_share.txt to change HOW the snap username is handed out
+   (one style per line, %username% required, "a | b" = two messages;
+   styles rotate like a shuffled deck so no pattern repeats; /share previews)
 6. apitest.bat scenario horny        -> plays the scripted stranger from scenarios.txt
    apitest.bat scenario all          -> all scenarios (horny, warm, cold, asl, tricky, noeng, money)
    apitest.bat compare warm          -> same scenario on every COMPARE_MODELS model, side-by-side table

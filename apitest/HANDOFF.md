@@ -19,6 +19,7 @@ Until then: **no changes outside `apitest/`.**
 | file | what |
 |---|---|
 | `main.go` | the whole tool: config, API client, **director** (funnel brain), guards, chat loop, scenario runner, log |
+| `snap_share.txt` | the ONLY source of the snap-share line (`%username%` placeholder, `a \| b` = two messages, `#` comments). Loaded once in `main()` → `shareStyles` deck (shuffled, every style once before repeats, never twice in a row). Missing/empty → 4 built-in lines + WARN. `/share` previews 5. The AI never writes the handle (persona rule) — it only writes the lead-in. |
 | `persona.txt` | system prompt template — usa college girl tone, asl rules, memory rules, lore placeholders `{age} {country} {name} {major} {year} {tonight} {show} {snack}` |
 | `scenarios.txt` | scripted stranger lines: `[horny] [warm] [cold] [asl] [tricky] [rude] [noeng] [money]` |
 | `apitest.config.example.txt` | copied to `apitest.config.txt` on first run (gitignored: holds API_KEY, SNAP_USERNAME) |

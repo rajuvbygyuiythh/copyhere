@@ -160,11 +160,129 @@ var lorePool = struct{ Names, Majors, Years, Tonight, Shows, Snacks []string }{
 	Snacks:  []string{"takis", "cold pizza", "cereal", "oreos", "hot cheetos", "ice cream", "ramen", "goldfish"},
 }
 
-var shareLines = []string{
+// defaultShareLines are only used when snap_share.txt is missing or empty.
+// The real styles live in snap_share.txt (one per line, %username% required,
+// "|" splits one style into several messages, "#" starts a comment).
+var defaultShareLines = []string{
 	"ok fine, add me on snap 👻 %username%",
 	"my snap is %username%, add me rn",
 	"sc: %username% .. come find me there",
 	"ok u got me lol, snap %username%",
+}
+
+const usernamePlaceholder = "%username%"
+
+// shareDeck hands out snap-share styles like a shuffled deck: every style is
+// used once before any repeats, and the same style never comes twice in a
+// row, so the platform never sees the same "sc: ..." pattern over and over.
+type shareDeck struct {
+	styles [][]string // each style = 1..n message lines
+	order  []int
+	pos    int
+	last   int
+	source string
+}
+
+var shareStyles *shareDeck // loaded once in main from snap_share.txt
+
+func newShareDeck(styles [][]string, source string) *shareDeck {
+	return &shareDeck{styles: styles, last: -1, source: source}
+}
+
+// next returns the message lines of the next style with %username% filled in.
+func (d *shareDeck) next(rng *rand.Rand, username string) []string {
+	if d == nil || len(d.styles) == 0 {
+		d = newShareDeck(splitShareStyles(defaultShareLines), "built-in")
+	}
+	if d.pos >= len(d.order) {
+		d.order = rng.Perm(len(d.styles))
+		d.pos = 0
+		// no immediate repeat across the reshuffle boundary
+		if len(d.order) > 1 && d.order[0] == d.last {
+			d.order[0], d.order[1] = d.order[1], d.order[0]
+		}
+	}
+	idx := d.order[d.pos]
+	d.pos++
+	d.last = idx
+	out := make([]string, 0, len(d.styles[idx]))
+	for _, line := range d.styles[idx] {
+		out = append(out, strings.ReplaceAll(line, usernamePlaceholder, username))
+	}
+	return out
+}
+
+func (d *shareDeck) count() int {
+	if d == nil {
+		return len(defaultShareLines)
+	}
+	return len(d.styles)
+}
+
+func (d *shareDeck) name() string {
+	if d == nil {
+		return "built-in"
+	}
+	return d.source
+}
+
+// splitShareStyles turns raw lines into styles ("a | b" => two messages).
+func splitShareStyles(raw []string) [][]string {
+	var styles [][]string
+	for _, line := range raw {
+		var parts []string
+		for _, p := range strings.Split(line, "|") {
+			if p = strings.TrimSpace(p); p != "" {
+				parts = append(parts, p)
+			}
+		}
+		if len(parts) > 0 {
+			styles = append(styles, parts)
+		}
+	}
+	return styles
+}
+
+// loadShareStyles reads snap_share.txt. Lines without %username% are skipped
+// (reported in warns) because a share line without the handle is useless.
+func loadShareStyles(path string) (styles [][]string, warns []string, err error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, nil, err
+	}
+	var raw []string
+	for i, line := range strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		if !strings.Contains(line, usernamePlaceholder) {
+			warns = append(warns, fmt.Sprintf("snap_share.txt line %d skipped: no %s placeholder: %q", i+1, usernamePlaceholder, line))
+			continue
+		}
+		raw = append(raw, line)
+	}
+	return splitShareStyles(raw), warns, nil
+}
+
+// initShareStyles loads snap_share.txt next to the exe, falling back to the
+// built-in list with a warning.
+func initShareStyles(dir string) {
+	path := filepath.Join(dir, "snap_share.txt")
+	styles, warns, err := loadShareStyles(path)
+	for _, w := range warns {
+		fmt.Println("     WARN: " + w)
+	}
+	switch {
+	case err != nil:
+		fmt.Printf("     WARN: %s not found (%v) - using %d built-in snap styles\n", path, err, len(defaultShareLines))
+		shareStyles = newShareDeck(splitShareStyles(defaultShareLines), "built-in")
+	case len(styles) == 0:
+		fmt.Printf("     WARN: %s has no usable lines - using %d built-in snap styles\n", path, len(defaultShareLines))
+		shareStyles = newShareDeck(splitShareStyles(defaultShareLines), "built-in")
+	default:
+		shareStyles = newShareDeck(styles, "snap_share.txt")
+	}
 }
 
 type director struct {
@@ -836,6 +954,7 @@ func main() {
 	if err != nil {
 		fatal(err)
 	}
+	initShareStyles(dir)
 	mode := "chat"
 	if len(os.Args) > 1 {
 		mode = strings.ToLower(os.Args[1])
@@ -868,6 +987,7 @@ type stats struct {
 	PromptTok, ComplTok                            int
 	Seconds                                        float64
 	ShareTurn                                      int
+	ShareStyle                                     string
 }
 
 type runner struct {
@@ -915,7 +1035,7 @@ func (r *runner) summary() {
 	}
 	share := "not shared"
 	if r.st.ShareTurn > 0 {
-		share = fmt.Sprintf("shared on reply %d", r.st.ShareTurn)
+		share = fmt.Sprintf("shared on reply %d (%q)", r.st.ShareTurn, r.st.ShareStyle)
 	}
 	avgW := float64(r.st.Words) / float64(max(r.st.Lines, 1))
 	line := fmt.Sprintf("--- summary: %d replies | %s | tier %s | retries %d | warns %d | doubles %d | avg %.1f words/line | %.1fs avg | %d+%d tokens | %s ---",
@@ -1002,9 +1122,11 @@ func (r *runner) step(text string) {
 		if user == "" {
 			user = "yoursnapname"
 		}
-		lines = append(lines, strings.ReplaceAll(shareLines[r.rng.Intn(len(shareLines))], "%username%", user))
+		shareLines := shareStyles.next(r.rng, user)
+		lines = append(lines, shareLines...)
 		if r.st.ShareTurn == 0 {
 			r.st.ShareTurn = turn
+			r.st.ShareStyle = strings.Join(shareLines, " | ")
 		}
 	}
 	for _, line := range lines {
@@ -1074,6 +1196,13 @@ func chatLoop(cfg config, personaTemplate string) {
 			continue
 		case "/summary":
 			r.summary()
+			continue
+		case "/share", "/snap":
+			user := orDefault(cfg.SnapUsername, "yoursnapname")
+			fmt.Printf("--- %d snap styles from %s, 5 previews (deck order, no repeats until all used) ---\n", shareStyles.count(), shareStyles.name())
+			for i := 0; i < 5; i++ {
+				fmt.Printf("  %s\n", strings.Join(shareStyles.next(r.rng, user), "  ||  "))
+			}
 			continue
 		case "/help":
 			printHelp()
@@ -1734,6 +1863,7 @@ func printBanner(cfg config, s *session) {
 	fmt.Printf(" api:     %s\n model:   %s\n thinking-off: %s\n", cfg.BaseURL, cfg.Model, noThinkLabel(cfg))
 	fmt.Printf(" persona: f %d from %s, name %s (only told if asked)   (persona.txt, /new = re-roll)\n", s.Age, s.Country, s.Name)
 	fmt.Printf(" snap at: HOT reply %d | WARM %d | COLD %d   username: %s\n", cfg.ShareHot, cfg.ShareWarm, cfg.ShareCold, orDefault(cfg.SnapUsername, "(set SNAP_USERNAME)"))
+	fmt.Printf(" styles:  %d snap-share styles from %s (/share = preview)\n", shareStyles.count(), shareStyles.name())
 	fmt.Printf(" moods:   %s\n", strings.Join(s.Director.moods, " > "))
 	fmt.Println(" type a message, or /help for commands")
 	fmt.Println("==========================================================")
@@ -1746,6 +1876,7 @@ func printHelp() {
 	fmt.Println(" /prompt   toggle printing the full request (incl. director note) before each call")
 	fmt.Println(" /history  show the conversation memory sent to the model")
 	fmt.Println(" /summary  stats of this chat so far (retries, tokens, share turn)")
+	fmt.Println(" /share    preview 5 snap-share styles from snap_share.txt")
 	fmt.Println(" /quit     exit")
 }
 
