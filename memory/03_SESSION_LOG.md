@@ -99,4 +99,7 @@ Format: date · commit(s) · what · why/notes. Older history condensed.
 - Owner (Browser page screenshot): wants a "Browser mode" option — bot runs
   through the always-visible real browser, DOM/browser based, not websocket;
   asked for plan + file scope first, safely. Delivered P8 plan (no code).
+- Owner restated the goal (browser visible login→chat until Stop; Stop =
+  auto-close + session auto-save) and asked "is it already done? analyze
+  deeply" → answered NOT done (details in P8 plan note); no code.
 

@@ -183,6 +183,19 @@ send (native typing indicator). Needs CSS selectors from the owner (same
 snippet approach); selectors editable in `data\browser_mode\selectors.json`.
 Fallback to phase-1 fetch when a selector breaks.
 
+Owner's exact goal (2026-10-14): browser visible ALL the time from login to
+chat A→Z until he clicks Stop; on Stop the browser auto-closes and the
+session is auto-saved for next time. Analysis result: NOT done today —
+login capture closes the browser right after login (`defer backend.Close()`
+in `captureLoginViaBrowser`), chat runs over Go http + Go websocket, expired
+token stops the worker (no in-browser re-login), "Run Fresh Browsers"
+deletes its temp profile (only login_info_*.json survives). What IS done:
+persistent profile dir `profiles/<name>/browser-data/<backend>` (cookies
+survive), `login_info.json` saved at login, saved login reused on next Start,
+Headless toggle, in-page `Backend.Fetch`. Phase 1 must add: keep window
+open, in-browser re-login on 401 (instead of stopping), on Stop → re-capture
+session (`CaptureSession` → save login_info.json) then `Close()`.
+
 Risks told to the owner: one Chrome window per account (3–10 accounts
 realistic on one PC, not 50–60); window must stay logged in; if he closes
 the window the worker stops (we log it, no crash).
