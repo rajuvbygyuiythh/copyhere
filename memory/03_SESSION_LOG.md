@@ -76,4 +76,6 @@ Format: date · commit(s) · what · why/notes. Older history condensed.
 - Owner (screenshots of the API Chat panel, now on the NEW build): "ei
   option gulo kivabe kaj kore?" → explained every field in Bengali (no code
   change). Owner still has to paste key + usernames and run a real chat.
+- Owner asked to explain "Chats with NO snap (%)" and "Strict no-snap chats"
+  in depth → explained with examples (no code change).
 
