@@ -50,29 +50,32 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
+func normalizeBrowserSettings(settings model.BrowserSettings) model.BrowserSettings {
+	if settings.Profile == "" {
+		settings.Profile = "default"
+	}
+	if settings.Backend != "rod" && settings.Backend != "chromedp" {
+		settings.Backend = "rod"
+	}
+	// Classic/login-capture mode was removed from the product. An old
+	// settings file may still carry browser_mode=false or headless=true;
+	// never let those values resurrect a capture-only or invisible browser.
+	settings.BrowserMode = true
+	settings.Headless = false
+	return settings
+}
+
 func (s *Store) LoadBrowserSettings() (model.BrowserSettings, error) {
 	settings := model.DefaultBrowserSettings()
 	ok, err := s.loadJSON(keyBrowser, &settings)
 	if err != nil || !ok {
-		return settings, err
+		return normalizeBrowserSettings(settings), err
 	}
-	if settings.Profile == "" {
-		settings.Profile = "default"
-	}
-	if settings.Backend != "rod" && settings.Backend != "chromedp" {
-		settings.Backend = "rod"
-	}
-	return settings, nil
+	return normalizeBrowserSettings(settings), nil
 }
 
 func (s *Store) SaveBrowserSettings(settings model.BrowserSettings) error {
-	if settings.Profile == "" {
-		settings.Profile = "default"
-	}
-	if settings.Backend != "rod" && settings.Backend != "chromedp" {
-		settings.Backend = "rod"
-	}
-	return s.saveJSON(keyBrowser, settings)
+	return s.saveJSON(keyBrowser, normalizeBrowserSettings(settings))
 }
 
 func (s *Store) LoadMessageSettings() (model.MessageSettings, error) {

@@ -10,9 +10,13 @@ import (
 )
 
 type Options struct {
-	StartURL            string
-	UserDataDir         string
-	Headless            bool
+	StartURL    string
+	UserDataDir string
+	Headless    bool
+	// DisablePageRecovery is retained for launch-site compatibility. Rod
+	// now never creates or adopts a replacement page after Start returns:
+	// a closed page/window stays closed, and the worker/backend Close is
+	// responsible for ending the Chrome process.
 	DisablePageRecovery bool
 	Proxy               *proxy.Entry
 	// Timezone / Locale are emulated inside the page (CDP Emulation) so the

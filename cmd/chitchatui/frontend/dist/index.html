@@ -146,7 +146,7 @@
       <section class="tab-panel" data-panel="message">
         <header class="panel-header">
           <div>
-            <h1>Message <span id="ui-build-tag" style="font-size:0.5em; font-weight:normal; color:var(--muted); vertical-align:middle;">UI build 2026-10-14h · 4 chat modes · stop kills browser process tree · auto timezone</span></h1>
+            <h1>Message <span id="ui-build-tag" style="font-size:0.5em; font-weight:normal; color:var(--muted); vertical-align:middle;">UI build 2026-10-14i · 4 chat modes · live browser only · no auto reopen · auto timezone</span></h1>
             <p>One line equals one bot message step. Line 1 is first message, line 2 is second reply, line 3 is third reply, and so on.</p>
           </div>
         </header>
@@ -246,7 +246,7 @@
         <header class="panel-header">
           <div>
             <h1>Browser</h1>
-            <p>Select the browser backend and profile used for login capture, or turn on Browser mode to keep the window open and chat through it.</p>
+            <p>Select the browser backend and profile. Every run uses one visible live browser window per account and chats through that window.</p>
           </div>
         </header>
 
@@ -258,37 +258,23 @@
             <input type="text" id="browser-profile" placeholder="default">
           </label>
 
-          <label class="checkbox-row">
-            <input type="checkbox" id="browser-headless">
-            <span>Headless mode</span>
-          </label>
-
           <div class="hint-text">
-            If the saved login is missing or expired, the selected backend will open the login browser.
+            There is no capture-only or headless browser mode. If a saved login is missing or expired, log in inside the live window and the bot continues there.
           </div>
 
-          <h3 style="margin:14px 0 6px;">Run mode <span id="browser-mode-status" class="hint-text" style="margin-left:8px;"></span></h3>
+          <h3 style="margin:14px 0 6px;">Browser mode <span id="browser-mode-status" class="hint-text" style="margin-left:8px;"></span></h3>
           <div class="browser-options" id="browser-mode-options">
-            <label class="browser-choice" id="browser-mode-option-classic">
+            <label class="browser-choice active" id="browser-mode-option-live">
               <div class="browser-choice-title">
-                <input type="radio" name="browser-run-mode" id="browser-mode-classic" value="classic">
-                <span>1. Classic — login capture only</span>
+                <input type="radio" name="browser-run-mode" id="browser-mode" value="live" checked disabled>
+                <span>Browser mode — live window (only mode)</span>
               </div>
               <div class="browser-choice-description">
-                Exactly as before. The browser opens only when the saved login is missing or expired, saves <code>login_info.json</code> and <strong>closes right after login</strong>. The bot then chats from the app (API + websocket). Headless applies here.
-              </div>
-            </label>
-            <label class="browser-choice" id="browser-mode-option-live">
-              <div class="browser-choice-title">
-                <input type="radio" name="browser-run-mode" id="browser-mode" value="live">
-                <span>2. Browser mode — live window</span>
-              </div>
-              <div class="browser-choice-description">
-                One visible browser window per account opens at Start and <strong>stays open until you press Stop</strong> (or close it yourself). Login, matching and every message happen through that window — real cookies, real browser, no websocket; replies are read through the window every few seconds. Session expired → log in again in the window, the bot resumes. <strong>Stop</strong> saves the session and closes the window; next Start logs in automatically. Headless is ignored. One Chrome per account (~300–500 MB), so use it for a few accounts.
+                One visible browser window per account opens at Start and <strong>stays open until you press Stop</strong> (or close it yourself). Login, matching and every message happen through that window — real cookies, real browser; replies are read through the window every few seconds. Session expired → log in again in the same window, the bot resumes. <strong>Stop</strong> saves the session and closes the window; next Start logs in automatically. A closed window is never recreated automatically. One Chrome per account (~300–500 MB), so use it for a few accounts.
               </div>
             </label>
           </div>
-          <div class="hint-text">Clicking a card saves the mode immediately. The Start log prints which mode is running. <strong>Run Fresh Browsers</strong> follows the mode too: in Browser mode a fresh window stays open after login and starts chatting right away.</div>
+          <div class="hint-text"><strong>Run Fresh Browsers</strong> also uses this only mode: after login, that same fresh window stays open and starts chatting right away. It will not open a second replacement window by itself.</div>
 
           <div class="hint-text" style="margin-top:12px;">
             <strong>Timezone is automatic</strong> (no setting here): before a window opens, the bot detects the exit country of that window's proxy and sets the browser timezone to match it — watch the <code>[timezone]</code> line in the log. No proxy (or country undetectable) → the window keeps your PC's own timezone. Manual override stays possible in the backend: add <code>|tz=America/Chicago</code> at the end of a proxy line. All windows also run with automation markers removed (no <code>navigator.webdriver</code>, no "controlled by software" bar), WebRTC local-IP leak blocked, realistic window size and low-memory flags. After login the log prints a <code>[browser] check:</code> line with what the site sees.

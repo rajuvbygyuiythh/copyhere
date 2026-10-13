@@ -9,11 +9,15 @@ type BrowserOption struct {
 }
 
 type BrowserSettings struct {
-	Profile  string `json:"profile"`
-	Backend  string `json:"backend"`
-	Headless bool   `json:"headless"`
-	// BrowserMode keeps the real browser window open for the whole run and
-	// sends every request through that page (no Go http / websocket).
+	Profile string `json:"profile"`
+	Backend string `json:"backend"`
+	// Headless is retained only so old settings files decode cleanly. The
+	// dashboard no longer offers a headless/capture mode: every browser run
+	// is a visible live window, and the store forces this to false.
+	Headless bool `json:"headless"`
+	// BrowserMode is likewise retained for settings-file compatibility.
+	// There is only one browser run mode now — the live window — and the
+	// store forces this to true when settings are loaded or saved.
 	BrowserMode bool `json:"browser_mode"`
 	// NOTE: there is no timezone setting any more. The browser timezone is
 	// resolved in the backend from the window's proxy exit country before
@@ -213,21 +217,22 @@ func DefaultBrowserOptions() []BrowserOption {
 		{
 			Key:         "rod",
 			Label:       "Rod",
-			Description: "Uses Rod for login capture with a persistent browser profile.",
+			Description: "Uses Rod to control the one visible live browser window for each account.",
 		},
 		{
 			Key:         "chromedp",
 			Label:       "ChromeDP",
-			Description: "Uses Chrome DevTools Protocol through chromedp.",
+			Description: "Uses Chrome DevTools Protocol through chromedp for the live browser window.",
 		},
 	}
 }
 
 func DefaultBrowserSettings() BrowserSettings {
 	return BrowserSettings{
-		Profile:  "default",
-		Backend:  "rod",
-		Headless: false,
+		Profile:     "default",
+		Backend:     "rod",
+		Headless:    false,
+		BrowserMode: true,
 	}
 }
 

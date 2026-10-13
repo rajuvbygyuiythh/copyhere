@@ -318,3 +318,16 @@ wait ceiling 20 s. Details: `docs/BROWSER_MODE.md` ("Stop audit
 round 2"), `03_SESSION_LOG.md`. Owner must re-run `install.bat` and see
 header tag `2026-10-14h` before judging; pre-14g orphan `chrome.exe`
 need one manual kill in Task Manager.
+
+## P13 — Live-only browser, no auto reopen — SHIPPED 2026-10-14 (UI 2026-10-14i)
+Owner: remove the capture mode; fresh live browser keeps auto-opening
+Chrome and Stop/close still fails. Shipped: Classic/login-capture mode
+removed (dashboard card, headless option, `Config.BrowserMode`,
+`captureLoginViaBrowser`); settings force live on load/save; Rod page
+recovery deleted (same-page retry only — a closed page stays closed and
+the worker stops); fresh Run cannot duplicate-launch while a batch is
+open; handover worker is Stop-registered before setup with a
+fresh-derived context; Stop sweeps fresh cancels while waiting.
+Details: `docs/BROWSER_MODE.md` ("Live-only mode + no auto reopen"),
+`03_SESSION_LOG.md`. Owner must re-run `install.bat` and confirm header
+tag `2026-10-14i`.

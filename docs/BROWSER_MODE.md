@@ -1,30 +1,26 @@
-# Browser mode (Browser page → "Run mode" cards)
+# Browser mode — live window (the only browser mode)
 
-The Browser page has two separate run-mode cards; clicking one saves it at
-once and the Start log prints `Browser page run mode: 1. CLASSIC ...` or
-`... 2. BROWSER MODE ...`. Stored as `browser_mode` (bool) in the settings.
-
-**1. Classic (default):** nothing changes. The browser opens only when a login is
-missing/expired, `login_info.json` is saved, the window closes, and the bot
-chats with Go http + Go websocket as before.
-
-**2. Browser mode:** one real browser window per account stays open from Start until Stop
-and every request goes through that page.
+Classic/login-capture mode was removed (UI 2026-10-14i). The Browser page
+has one live-window mode only; old settings files that still carry
+`browser_mode=false` or `headless=true` are normalised to the live mode
+when loaded or saved. One real browser window per account stays open from
+Start until Stop and every request goes through that page. A closed page
+or window is never recreated automatically.
 
 | Step | What happens | Log prefix |
 |------|--------------|-----------|
 | Start | `profiles/<account>/browser-data/<backend>` opened **visible** (Headless ignored). Proxy picked once per window, fixed. | `[browser] Browser mode on: opening visible ... window` |
 | Login | Profile already logged in → continue. Otherwise saved cookies from `login_info.json` are injected and the page reloaded; if still logged out the bot waits for you to log in in the window. `login_info.json` is (re)written when authenticated. | `[browser] Injecting the saved session`, `Waiting for the site to be logged in`, `Logged in as <id>` |
 | Chat | Same loop, same modes (EVAChat Flow / API Chat / ...). `api.Client` executes every request with the page's own `fetch()` (`credentials: "include"`): real cookies, TLS, UA, proxy. Browser-managed headers (Cookie/User-Agent/Origin/Referer/Sec-*) are stripped before the call. Websocket listener is off; a **message poller** (`browser_events.go`) feeds the same `matchUpdate` / `chatMessage` / closed events the socket would, from three sources: (1) the SPA's own socket frames captured in-page by the WebSocket tap, (2) `GET /match/active` + message reads, (3) the DM conversation list — see "Browser match detection" below. Outgoing messages are `POST …/conversations/{id}/messages` through the page once a source supplied the id. | normal logs + `[browser] Match detected via …` |
-| You click around in the window | If an in-page request fails because the page left the app, the executor navigates back to the app once and retries. Do not close the **tab** (chromedp cannot recover it; rod reopens one). | — |
+| You click around in the window | If an in-page request fails because the page left the app, the executor navigates the **same page** back to the app once and retries. Closing the tab/window ends that worker; no replacement page or window is created. | — |
 | 401 | Not fatal: window navigated back to the app, bot waits for a new login, then resumes with the fresh session. | `[browser] Session expired. Log in again inside the browser window` |
 | Window closed by you | Detected by the error text (websocket/EOF/…) or, for any other error, after 3 consecutive failures by a 5 s probe of the window. That worker stops with one line; other accounts keep running. | `[browser] browser window closed or unreachable ... Stopping this worker` |
 | Stop | Session captured once more (fresh cookies/storage) → `login_info.json` saved → window closed. Next Start logs in automatically. | `[browser] Session saved to ...`, `Browser window closed.` |
 
-Robustness: in Browser mode a failed cycle (any non-fatal error) is logged as
+Robustness: a failed cycle (any non-fatal error) is logged as
 `[browser] Cycle failed (...) Window stays open; retrying` and retried after
-the normal poll wait; only 10 failures in a row stop the worker. Classic mode
-keeps its old behaviour (stop on error).
+the normal poll wait in the same window; only 10 failures in a row stop the
+worker. If the page itself is gone, the worker stops instead of reopening it.
 
 Safety: a quick Stop → Start on the same account waits for the old window to
 finish closing (`Previous window of this profile is still closing; waiting`),
@@ -45,17 +41,18 @@ Verification available offline: `bash memory/scripts/offline_typecheck.sh`
 Code: `internal/bot/browser_mode.go` (window lifecycle, executor),
 `internal/bot/browser_events.go` (poll → events relay),
 `internal/api/client.go` (`Executor`, `NewVia`), `internal/browser/*`
-(`Navigate`, `SetCookies`), `internal/bot/run.go` (branches on
-`Config.BrowserMode`), `app.go` (setting → config), Browser page in
-`cmd/chitchatui/frontend/dist/index.html` + `app.js`.
+(`Navigate`, `SetCookies`), `internal/bot/run.go` (always opens/adopts the
+live session), `app.go` (settings → worker configs, fresh handover), Browser
+page in `cmd/chitchatui/frontend/dist/index.html` + `app.js`.
 
 ## Live Browser v2 (2026-10-14)
 
-**Run Fresh Browsers follows the run mode.** Classic: fresh window → login →
-`login_info_<id>.json` saved → window closes (as before). Browser mode: the
-same window **stays open** and a live worker starts chatting in it at once
-(`[acct] Live window worker started`); Stop saves the session and closes it.
-A later Start skips accounts that are already chatting in a live window.
+**Run Fresh Browsers always uses the live mode.** Fresh window → login →
+`login_info_<id>.json` saved → the same window **stays open** and a live
+worker starts chatting in it at once (`[acct] Live window worker started`);
+Stop saves the session and closes it. A later Start skips accounts that are
+already chatting in a live window, and a second Run Fresh click is blocked
+while a fresh batch is open.
 
 **Every close is explained**: `[browser] Closing window — reason: Stop pressed
 | window closed or unreachable | account banned | worker error: …`.
@@ -256,3 +253,30 @@ Still true after the upgrade: Chrome processes orphaned by builds older
 than 2026-10-14g do not belong to any live backend and must be closed
 once by hand (Task Manager → end leftover `chrome.exe` from the bot's
 profile folders); the new build never leaves new ones.
+
+## Live-only mode + no auto reopen (UI 2026-10-14i)
+
+Owner asked for the capture mode to be removed and for a fresh live
+browser to stop opening Chrome again and again. Changes:
+
+1. **Classic/login-capture mode is gone.** The dashboard Browser page has
+   only the live-window card (no Classic card, no headless checkbox).
+   Settings load/save force `browser_mode=true, headless=false`, so an
+   old Classic setting cannot bring capture mode back. `bot.Run` always
+   opens or adopts a live window; `captureLoginViaBrowser` and
+   `Config.BrowserMode` were removed.
+2. **Rod page recovery is gone.** The old `recoverPage` adopted another
+   target or created a new page and navigated it back to the app whenever
+   the JS session was lost — visually, Chrome/tab reopening by itself.
+   `withPageRetry` now retries only on the **same page** (to ride out SPA
+   navigation) and otherwise reports the page unavailable; the worker
+   stops and backend `Close()` kills the Chrome process tree.
+3. **Fresh launches cannot duplicate.** Run Fresh Browsers reserves its
+   batch synchronously; a second click while a fresh window is waiting
+   for login or already chatting live is rejected instead of spawning
+   more Chrome windows. The dashboard also reports Running during the
+   fresh login wait.
+4. **No Stop gap at handover.** The live handover worker is registered
+   with Stop before its setup work and derives its context from the fresh
+   window's context. Stop also keeps sweeping fresh cancels while it
+   waits, so a window registering during the Stop press is cancelled too.

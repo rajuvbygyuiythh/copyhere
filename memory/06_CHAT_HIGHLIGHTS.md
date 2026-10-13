@@ -87,3 +87,17 @@ Earlier turns are summarised; from 2026-10-14 on, one entry per turn.
     backend-এ recovery নিষেধ + fresh cancel registry + StopBot এখন সব
     window সত্যিই বন্ধ না হওয়া পর্যন্ত wait করে log দেয় "Stop
     complete: all browser windows are closed."
+
+15. Owner (Classic card-এর screenshot সহ): "same problem bro,,,run fresh
+    browser with live ,,bar bar chrome open hocche auto,bot stop ba browser
+    close hoyna eta fix koren pls,,ar browser er capture mood remove
+    koren,,,,ar 2. Browser mode - live eta mood diye browser run korle bar
+    bar jeno auto browser run na hoy eta deeply fix koren" → P13:
+    (1) Classic/capture mode dashboard + bot path থেকে পুরোপুরি removed,
+    শুধু live window mode; পুরনো Classic setting থাকলেও backend জোর করে
+    live করে দেবে। (2) আসল auto-reopen যন্ত্র Rod-এর page recovery-ই
+    মুছে দিয়েছি — page/tab বন্ধ হলে আর নতুন page তৈরি হবে না, worker
+    থামবে আর Chrome process kill হবে। (3) Fresh browser একটা open
+    থাকলে দ্বিতীয় Run Fresh click-এ আর Chrome খুলবে না।
+    (4) Handover-এর Stop race বন্ধ — Stop এখন কোনো অবস্থাতেই fresh/live
+    window মিস করবে না।

@@ -33,10 +33,10 @@ func TestRodCloseIdempotentAndBlocksRecovery(t *testing.T) {
 	}
 	err := b.withPageRetry(context.Background(), func(page *rod.Page) error { return nil })
 	if !errors.Is(err, ErrPageUnavailable) {
-		t.Fatalf("closed backend must refuse page work instead of recovering a page, got %v", err)
+		t.Fatalf("closed backend must refuse page work instead of using a page, got %v", err)
 	}
-	if _, err := b.recoverPage(context.Background()); !errors.Is(err, ErrPageUnavailable) {
-		t.Fatalf("closed backend must not recreate a page, got %v", err)
+	if _, err := b.currentPage(context.Background()); !errors.Is(err, ErrPageUnavailable) {
+		t.Fatalf("closed backend must not expose a page, got %v", err)
 	}
 }
 

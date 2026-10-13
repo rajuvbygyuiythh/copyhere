@@ -39,6 +39,7 @@ type App struct {
 	freshMu        sync.Mutex
 	freshCancels   map[uint64]context.CancelFunc // fresh windows Stop must reach even before handover
 	freshSeq       uint64
+	freshActive    int            // fresh windows reserved/open; blocks duplicate fresh launches
 	freshWG        sync.WaitGroup // fresh windows (login wait + handover) still open
 	licenseKey     string
 	licenseInvalid bool
@@ -164,8 +165,11 @@ func (a *App) GetInitialState() (model.UISnapshot, error) {
 		return model.UISnapshot{}, err
 	}
 
+	a.freshMu.Lock()
+	freshActive := a.freshActive
+	a.freshMu.Unlock()
 	a.mu.Lock()
-	running := a.running || len(a.liveWorkers) > 0
+	running := a.running || len(a.liveWorkers) > 0 || freshActive > 0
 	runningAccounts := len(a.activeWorkers)
 	isLicenseInvalid := a.licenseInvalid
 	licenseKey := a.licenseKey
@@ -331,14 +335,14 @@ func (a *App) SaveBrowserSettings(settings model.BrowserSettings) error {
 	if strings.TrimSpace(settings.Profile) == "" {
 		settings.Profile = "default"
 	}
+	// Classic/login-capture mode no longer exists in the dashboard. Every
+	// save is normalised to the one visible live-window mode.
+	settings.BrowserMode = true
+	settings.Headless = false
 	if err := a.uiStore.SaveBrowserSettings(settings); err != nil {
 		return err
 	}
-	mode := "1. CLASSIC (login capture only, closes after login)"
-	if settings.BrowserMode {
-		mode = "2. BROWSER MODE (live window stays open, chat through the browser)"
-	}
-	a.log("info", fmt.Sprintf("Browser settings saved. Backend=%s Profile=%s RunMode=%s", settings.Backend, settings.Profile, mode))
+	a.log("info", fmt.Sprintf("Browser settings saved. Backend=%s Profile=%s RunMode=Browser mode (live window)", settings.Backend, settings.Profile))
 	return nil
 }
 
@@ -349,20 +353,30 @@ func (a *App) RunFreshBrowsers(count int) error {
 	if count > 5 {
 		return fmt.Errorf("fresh browser count cannot be more than 5")
 	}
+	// One fresh batch at a time. A double click (or a second click while a
+	// fresh window is still waiting for login / already chatting live) must
+	// never spawn replacement Chrome windows behind the owner's back.
+	if !a.reserveFreshBrowsers(count) {
+		return fmt.Errorf("a fresh browser is already open; press Stop or close it before running another fresh browser")
+	}
+	releaseReservation := func() { a.releaseFreshReservation(count) }
 
 	browserSettings, err := a.uiStore.LoadBrowserSettings()
 	if err != nil {
+		releaseReservation()
 		return err
 	}
 
 	proxyRotator, proxyCount, err := a.loadProxyRotator()
 	if err != nil {
+		releaseReservation()
 		return err
 	}
 
 	profileName := safeProfileName(browserSettings.Profile)
 	profileDir := filepath.Join(a.dataDir, "profiles", profileName)
 	if err := store.EnsureDir(profileDir); err != nil {
+		releaseReservation()
 		return err
 	}
 
@@ -389,9 +403,8 @@ func (a *App) RunFreshBrowsers(count int) error {
 		a.freshSeq++
 		freshID := a.freshSeq
 		a.freshMu.Unlock()
-		a.freshWG.Add(1)
 		go func() {
-			defer a.freshWG.Done()
+			defer a.finishFreshBrowser()
 			a.runFreshBrowser(freshID, profileDir, profileName, browserSettings, selectedProxy, index, count)
 		}()
 	}
@@ -756,14 +769,9 @@ func (a *App) StopBot() error {
 	}
 	a.mu.Unlock()
 
-	a.freshMu.Lock()
-	fresh := make([]context.CancelFunc, 0, len(a.freshCancels))
-	for _, c := range a.freshCancels {
-		fresh = append(fresh, c)
-	}
-	a.freshMu.Unlock()
+	fresh, freshActive := a.freshCancelSnapshot()
 
-	if cancel == nil && len(live) == 0 && len(fresh) == 0 {
+	if cancel == nil && len(live) == 0 && len(fresh) == 0 && freshActive == 0 {
 		return nil
 	}
 	if cancel != nil {
@@ -783,7 +791,13 @@ func (a *App) StopBot() error {
 		a.log("info", "Stopping all bot workers.")
 	}
 	a.emitStatus(false)
+	// A fresh window registers its cancel a moment after Run Fresh is
+	// clicked. Keep sweeping while Stop waits so a window that registers
+	// during the Stop itself is cancelled too, never left running alone.
+	sweepStop := make(chan struct{})
+	go a.sweepFreshCancels(sweepStop)
 	a.waitForBrowsersClosed(done, 20*time.Second)
+	close(sweepStop)
 	return nil
 }
 
@@ -816,6 +830,67 @@ func (a *App) waitForBrowsersClosed(done chan struct{}, timeout time.Duration) {
 		a.log("info", "Stop complete: all browser windows are closed.")
 	case <-time.After(remaining):
 		a.log("warn", "Stop: some fresh browser windows did not finish closing within the wait limit; their browser processes are being force-closed by the backend.")
+	}
+}
+
+// reserveFreshBrowsers claims the fresh-browser slots for one Run Fresh
+// Browsers click. It also joins freshWG immediately, so Stop can wait for
+// (and, once registered, cancel) windows that are still being prepared.
+func (a *App) reserveFreshBrowsers(count int) bool {
+	a.freshMu.Lock()
+	defer a.freshMu.Unlock()
+	if a.freshActive > 0 {
+		return false
+	}
+	a.freshActive = count
+	a.freshWG.Add(count)
+	return true
+}
+
+func (a *App) releaseFreshReservation(count int) {
+	for i := 0; i < count; i++ {
+		a.finishFreshBrowser()
+	}
+}
+
+func (a *App) finishFreshBrowser() {
+	a.freshMu.Lock()
+	if a.freshActive > 0 {
+		a.freshActive--
+	}
+	a.freshMu.Unlock()
+	a.freshWG.Done()
+}
+
+func (a *App) freshCancelSnapshot() ([]context.CancelFunc, int) {
+	a.freshMu.Lock()
+	defer a.freshMu.Unlock()
+	fresh := make([]context.CancelFunc, 0, len(a.freshCancels))
+	for _, c := range a.freshCancels {
+		fresh = append(fresh, c)
+	}
+	return fresh, a.freshActive
+}
+
+// sweepFreshCancels repeatedly cancels every registered fresh window until
+// none are active. It covers the tiny registration gap between clicking
+// Run Fresh Browsers and the window goroutine installing its cancel.
+func (a *App) sweepFreshCancels(stop <-chan struct{}) {
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		fresh, active := a.freshCancelSnapshot()
+		for _, cancel := range fresh {
+			cancel()
+		}
+		if active == 0 {
+			return
+		}
+		select {
+		case <-stop:
+			return
+		case <-ticker.C:
+		}
 	}
 }
 
@@ -1006,14 +1081,9 @@ func (a *App) buildBotConfigs() ([]bot.Config, error) {
 
 	assignments := workerplan.AssignProfileWorkers(profiles, env.proxies)
 	configs := make([]bot.Config, 0, len(assignments))
-	if !browserSettings.BrowserMode {
-		a.log("info", "Browser page run mode: 1. CLASSIC — browser only for login capture (closes after login), chat from the app.")
-	}
-	if browserSettings.BrowserMode {
-		a.log("info", fmt.Sprintf("Browser page run mode: 2. BROWSER MODE (live window) — %d visible browser window(s) will stay open until Stop; all chat traffic goes through them (no websocket). Each window's timezone is auto-set from its proxy's exit country before launch.", len(assignments)))
-		if len(assignments) > 10 {
-			a.log("warn", fmt.Sprintf("Browser mode with %d accounts = %d Chrome windows (about 150-300 MB RAM each). Consider fewer accounts or the normal mode for the rest.", len(assignments), len(assignments)))
-		}
+	a.log("info", fmt.Sprintf("Browser mode (live window) — %d visible browser window(s) will stay open until Stop; all chat traffic goes through them. Each window's timezone is auto-set from its proxy's exit country before launch.", len(assignments)))
+	if len(assignments) > 10 {
+		a.log("warn", fmt.Sprintf("Browser mode with %d accounts = %d Chrome windows (about 150-300 MB RAM each). Consider running fewer accounts at once.", len(assignments), len(assignments)))
 	}
 
 	for _, assignment := range assignments {
@@ -1041,11 +1111,9 @@ func (a *App) workerConfig(env *botRunEnv, assignment workerplan.Assignment) bot
 	)
 	cfg.LoginInfoPath = assignment.LoginInfoPath
 	cfg.DebugAPI = generalSettings.DebugAPI
-	if browserSettings.BrowserMode {
-		// Browser mode: the window must be visible (that is the point).
-		cfg.BrowserMode = true
-		cfg.Headless = false
-	}
+	// The live browser window is the only mode now: visible, and all chat
+	// traffic goes through that same window until Stop closes it.
+	cfg.Headless = false
 	cfg.ChatMode = env.chatMode
 	if cfg.ChatMode == model.ChatModeEVAChat || cfg.ChatMode == model.ChatModeAPIChat {
 		cfg.EVAChat = env.evaChat
@@ -1180,26 +1248,22 @@ func (a *App) runFreshBrowser(freshID uint64, profileDir string, profileName str
 	// Auto timezone: resolved from the proxy's exit country BEFORE the
 	// window launches (explicit "|tz=" on the proxy line still wins).
 	zone := a.resolveFreshWindowTimezone(ctx, profileName, index, total, selectedProxy)
-	headless := settings.Headless
-	if settings.BrowserMode {
-		headless = false // live window must be visible
-		zoneLabel := zone
-		if zoneLabel == "" {
-			zoneLabel = "PC timezone"
-		}
-		a.log("info", fmt.Sprintf("[%s fresh %d/%d] Browser mode is on: after login this window STAYS OPEN and starts chatting (timezone %s).", profileName, index, total, zoneLabel))
+	zoneLabel := zone
+	if zoneLabel == "" {
+		zoneLabel = "PC timezone"
 	}
+	a.log("info", fmt.Sprintf("[%s fresh %d/%d] Live browser mode: after login this same window STAYS OPEN and starts chatting (timezone %s). No replacement window will be opened automatically.", profileName, index, total, zoneLabel))
 	if err := backend.Start(ctx, browser.Options{
 		StartURL:            "https://app.chitchat.gg/",
 		UserDataDir:         userDataDir,
-		Headless:            headless,
-		DisablePageRecovery: !settings.BrowserMode,
+		Headless:            false,
+		DisablePageRecovery: true,
 		Proxy:               selectedProxy,
 		Timezone:            zone,
 		Locale:              "en-US",
 		Stealth:             true,
 		LowMemory:           true,
-		SocketTap:           settings.BrowserMode,
+		SocketTap:           true,
 		HardwareConcurrency: browser.PickHardwareConcurrency(profileName),
 	}); err != nil {
 		a.log("error", fmt.Sprintf("[%s fresh %d/%d] Browser start failed: %v", profileName, index, total, err))
@@ -1227,51 +1291,48 @@ func (a *App) runFreshBrowser(freshID uint64, profileDir string, profileName str
 		return
 	}
 
-	if !settings.BrowserMode {
-		a.log("info", fmt.Sprintf(
-			"[%s fresh %d/%d] Login saved to %s. Classic mode: this window closes now; press Start to chat with it.",
-			profileName,
-			index,
-			total,
-			loginPath,
-		))
-		return
-	}
-
-	a.log("info", fmt.Sprintf("[%s fresh %d/%d] Login saved to %s. Browser mode: handing this window over to a live worker.", profileName, index, total, loginPath))
-	a.runLiveHandoverWorker(backend, loginPath, profileName, login, selectedProxy)
+	a.log("info", fmt.Sprintf("[%s fresh %d/%d] Login saved to %s. Handing this same window over to a live worker; no new browser will be launched for it.", profileName, index, total, loginPath))
+	a.runLiveHandoverWorker(ctx, backend, loginPath, profileName, login, selectedProxy)
 	// returning closes the window and removes the temp data (deferred above)
 }
 
-// runLiveHandoverWorker runs a Browser-mode worker inside an already open,
+// runLiveHandoverWorker runs a live worker inside an already open,
 // logged-in fresh window. Blocks until Stop / window closed / fatal error.
-func (a *App) runLiveHandoverWorker(backend browser.Backend, loginPath string, parentProfile string, login model.LoginInfo, selectedProxy *proxy.Entry) {
-	env, err := a.loadBotRunEnv()
-	if err != nil {
-		a.log("error", fmt.Sprintf("[%s] Live window handover failed to load settings: %v", parentProfile, err))
-		return
-	}
-	workerName := workerplan.WorkerNameFromLoginFile(parentProfile, loginPath, login.CurrentUserID())
-	assignment := workerplan.Assignment{Profile: workerName, LoginInfoPath: loginPath}
-	if selectedProxy != nil {
-		assignment.Proxy = *selectedProxy
-		assignment.HasProxy = true
-	}
-	cfg := a.workerConfig(env, assignment)
-	cfg.BrowserMode = true
-	cfg.Headless = false
-	cfg.AttachedBackend = backend
-	// the window already has its proxy (and its auto timezone); the worker must not pick another
-	cfg.ProxyRotator = nil
-
-	ctx, cancel := context.WithCancel(context.Background())
+// The worker context is derived from the fresh window's context and is
+// registered with Stop BEFORE any setup work: there is no gap in which a
+// Stop press can miss this window and leave it running on its own.
+func (a *App) runLiveHandoverWorker(parentCtx context.Context, backend browser.Backend, loginPath string, parentProfile string, login model.LoginInfo, selectedProxy *proxy.Entry) {
+	ctx, cancel := context.WithCancel(parentCtx)
 	defer cancel()
+	workerName := workerplan.WorkerNameFromLoginFile(parentProfile, loginPath, login.CurrentUserID())
 	a.registerLiveWorker(loginPath, cancel)
 	a.setWorkerRunning(workerName, true)
 	defer func() {
 		a.setWorkerRunning(workerName, false)
 		a.unregisterLiveWorker(loginPath)
 	}()
+	if ctx.Err() != nil {
+		return
+	}
+
+	env, err := a.loadBotRunEnv()
+	if err != nil {
+		a.log("error", fmt.Sprintf("[%s] Live window handover failed to load settings: %v", parentProfile, err))
+		return
+	}
+	if ctx.Err() != nil {
+		return
+	}
+	assignment := workerplan.Assignment{Profile: workerName, LoginInfoPath: loginPath}
+	if selectedProxy != nil {
+		assignment.Proxy = *selectedProxy
+		assignment.HasProxy = true
+	}
+	cfg := a.workerConfig(env, assignment)
+	cfg.Headless = false
+	cfg.AttachedBackend = backend
+	// the window already has its proxy (and its auto timezone); the worker must not pick another
+	cfg.ProxyRotator = nil
 
 	a.log("info", fmt.Sprintf("[%s] Live window worker started (press Stop to save the session and close the window).", workerName))
 	err = bot.Run(ctx, cfg)

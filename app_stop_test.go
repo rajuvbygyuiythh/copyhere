@@ -36,3 +36,24 @@ func TestFreshCancelRegistryReachesWaitingWindow(t *testing.T) {
 		t.Fatalf("registry should be empty after unregister, has %d", remaining)
 	}
 }
+
+// A second Run Fresh Browsers click must not spawn more Chrome windows
+// while a fresh batch is waiting for login or already chatting live.
+func TestFreshBrowserReservationBlocksDuplicates(t *testing.T) {
+	a := &App{}
+	if !a.reserveFreshBrowsers(1) {
+		t.Fatal("first fresh reservation should succeed")
+	}
+	if a.reserveFreshBrowsers(1) {
+		t.Fatal("duplicate fresh launch must be blocked while one is active")
+	}
+	a.finishFreshBrowser()
+	if !a.reserveFreshBrowsers(2) {
+		t.Fatal("fresh reservation should succeed again after the prior window finished")
+	}
+	a.releaseFreshReservation(2)
+	_, active := a.freshCancelSnapshot()
+	if active != 0 {
+		t.Fatalf("fresh active count should return to zero, got %d", active)
+	}
+}

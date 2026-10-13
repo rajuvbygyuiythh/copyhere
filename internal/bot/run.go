@@ -27,8 +27,7 @@ type Config struct {
 	// DebugAPI writes every API request to data/debug/<profile>_api.log and
 	// mirrors writes / errors to the live log as "[api] …" lines.
 	DebugAPI             bool
-	BrowserMode          bool            // keep the real browser open; chat through its page
-	AttachedBackend      browser.Backend // Browser mode: an already open, logged-in window to adopt (fresh-login handover)
+	AttachedBackend      browser.Backend // live mode: an already open, logged-in window to adopt (fresh-login handover)
 	MatchWhenIdle        bool
 	PollMin              time.Duration
 	PollMax              time.Duration
@@ -94,22 +93,14 @@ func Run(ctx context.Context, cfg Config) (retErr error) {
 	if err != nil {
 		return err
 	}
-	var bsession *browserSession // non-nil only in Browser mode
-	if cfg.BrowserMode {
-		bsession, login, err = openBrowserSession(ctx, cfg, p, login)
-		if err != nil {
-			return err
-		}
-		defer func() { bsession.saveAndClose(login, closeReason(ctx, retErr)) }()
-	} else if login.Token() == "" {
-		logln(cfg, "No saved login token found. Opening browser for login.")
-		login, err = captureLoginViaBrowser(ctx, cfg, p)
-		if err != nil {
-			return err
-		}
-	} else {
-		logf(cfg, "Using saved login from %s\n", p.LoginInfo)
+	// Live browser mode is the only browser path. Classic/login-capture
+	// mode was removed: the worker always opens (or adopts) one visible
+	// window, chats through it, and closes that same window on exit.
+	bsession, login, err := openBrowserSession(ctx, cfg, p, login)
+	if err != nil {
+		return err
 	}
+	defer func() { bsession.saveAndClose(login, closeReason(ctx, retErr)) }()
 
 	currentUserID := currentUserIDFromLogin(login)
 	if currentUserID == "" {
@@ -484,37 +475,6 @@ func waitForNextCycle(
 			}
 		}
 	}
-}
-
-func captureLoginViaBrowser(ctx context.Context, cfg Config, p paths) (model.LoginInfo, error) {
-	backend, err := browser.New(cfg.Backend)
-	if err != nil {
-		return model.LoginInfo{}, err
-	}
-	defer backend.Close()
-
-	userDataDir := filepath.Join(p.ProfileDir, "browser-data", cfg.Backend)
-	if err := store.EnsureDir(userDataDir); err != nil {
-		return model.LoginInfo{}, err
-	}
-
-	logf(cfg, "Opening %s browser for login with profile %q\n", cfg.Backend, cfg.Profile)
-	logf(cfg, "Browser data: %s\n", userDataDir)
-
-	var selectedProxy *proxy.Entry
-	if cfg.ProxyRotator != nil {
-		if nextProxy, ok := cfg.ProxyRotator.Next(); ok {
-			selectedProxy = &nextProxy
-			logf(cfg, "Using proxy for browser login: %s\n", nextProxy.Label())
-		}
-	}
-	resolveWindowTimezone(ctx, cfg, selectedProxy)
-
-	if err := backend.Start(ctx, browserWindowOptions(cfg, userDataDir, selectedProxy)); err != nil {
-		return model.LoginInfo{}, err
-	}
-
-	return waitForLogin(ctx, backend, cfg, p)
 }
 
 func waitForLogin(ctx context.Context, backend browser.Backend, cfg Config, p paths) (model.LoginInfo, error) {

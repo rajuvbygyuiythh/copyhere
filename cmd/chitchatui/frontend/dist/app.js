@@ -159,8 +159,7 @@ function setChatMode(mode) {
 
 function fillForms(snapshot) {
   document.getElementById("browser-profile").value = snapshot.browser.profile || "default";
-  document.getElementById("browser-headless").checked = !!snapshot.browser.headless;
-  setBrowserRunMode(!!snapshot.browser.browser_mode);
+  setBrowserRunMode(true);
 
   const currentMode = snapshot.message.chat_mode || ((snapshot.message.use_loaded_sequences && snapshot.message.loaded_sequences && snapshot.message.loaded_sequences.length > 0) ? "folder" : "single");
   setChatMode(currentMode);
@@ -232,30 +231,23 @@ function escapeHtml(value) {
     .replaceAll("'", "&#39;");
 }
 
-function setBrowserRunMode(live) {
+function setBrowserRunMode(_live) {
+  // Classic/login-capture mode was removed: the live window is the only
+  // browser run mode, regardless of any value in an old settings file.
   const liveRadio = document.getElementById("browser-mode");
-  const classicRadio = document.getElementById("browser-mode-classic");
-  if (liveRadio) liveRadio.checked = !!live;
-  if (classicRadio) classicRadio.checked = !live;
+  if (liveRadio) liveRadio.checked = true;
   const liveCard = document.getElementById("browser-mode-option-live");
-  const classicCard = document.getElementById("browser-mode-option-classic");
-  if (liveCard) liveCard.classList.toggle("active", !!live);
-  if (classicCard) classicCard.classList.toggle("active", !live);
+  if (liveCard) liveCard.classList.add("active");
   const status = document.getElementById("browser-mode-status");
-  if (status) status.textContent = live ? "current: 2. Browser mode (live window)" : "current: 1. Classic (closes after login)";
-}
-
-function browserRunModeIsLive() {
-  const liveRadio = document.getElementById("browser-mode");
-  return !!(liveRadio && liveRadio.checked);
+  if (status) status.textContent = "current: Browser mode (live window)";
 }
 
 function browserSettingsPayload() {
   return {
     profile: document.getElementById("browser-profile").value.trim() || "default",
     backend: selectedBackend(),
-    headless: document.getElementById("browser-headless").checked,
-    browser_mode: browserRunModeIsLive(),
+    headless: false,
+    browser_mode: true,
   };
 }
 
@@ -302,14 +294,6 @@ function bindForms() {
     event.preventDefault();
     await invoke("SaveBrowserSettings", browserSettingsPayload());
     await refreshState();
-  });
-
-  document.querySelectorAll('input[name="browser-run-mode"]').forEach((radio) => {
-    radio.addEventListener("change", async (e) => {
-      setBrowserRunMode(e.target.value === "live");
-      await invoke("SaveBrowserSettings", browserSettingsPayload());
-      await refreshState();
-    });
   });
 
   document.querySelectorAll('input[name="chat-mode"]').forEach((radio) => {

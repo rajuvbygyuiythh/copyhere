@@ -183,17 +183,23 @@ func TestBrowserExecutorProbesWindowAfterRepeatedFailures(t *testing.T) {
 }
 
 func TestBrowserWindowOptionsStealthAndTimezone(t *testing.T) {
-	cfg := Config{AppURL: "https://app.chitchat.gg/", Headless: false}
+	cfg := Config{AppURL: "https://app.chitchat.gg/", Headless: true}
 	opts := browserWindowOptions(cfg, "/tmp/x", nil)
 	if !opts.Stealth || !opts.LowMemory || opts.Locale != "en-US" || opts.StartURL != cfg.AppURL {
 		t.Fatalf("unexpected options: %+v", opts)
 	}
+	if opts.Headless {
+		t.Fatal("live browser windows must always be visible")
+	}
+	if !opts.DisablePageRecovery {
+		t.Fatal("page recovery must stay disabled so a closed window is never recreated")
+	}
+	if !opts.SocketTap {
+		t.Fatal("the live window must enable the socket tap for match detection")
+	}
 	// No proxy and no resolved zone: empty timezone = the PC's own zone.
 	if opts.Timezone != "" {
 		t.Fatalf("no proxy must leave the timezone empty (PC zone), got %q", opts.Timezone)
-	}
-	if opts.SocketTap {
-		t.Fatal("socket tap must be off outside Browser mode")
 	}
 	// A proxy whose exit-country timezone was resolved beforehand is used.
 	withTZ := &proxy.Entry{Scheme: "http", Host: "1.2.3.4", Port: "8080", Timezone: "America/Chicago"}
@@ -203,12 +209,6 @@ func TestBrowserWindowOptionsStealthAndTimezone(t *testing.T) {
 	noTZ := &proxy.Entry{Scheme: "http", Host: "1.2.3.4", Port: "8080"}
 	if got := browserWindowOptions(cfg, "/tmp/x", noTZ).Timezone; got != "" {
 		t.Fatalf("unresolved proxy timezone must stay empty (PC zone), got %s", got)
-	}
-	// Browser mode turns the socket tap on (match detection through the page).
-	live := cfg
-	live.BrowserMode = true
-	if got := browserWindowOptions(live, "/tmp/x", nil); !got.SocketTap {
-		t.Fatal("Browser mode must enable the socket tap")
 	}
 }
 
@@ -235,7 +235,7 @@ func TestAdoptBrowserSessionUsesAttachedWindow(t *testing.T) {
 	fb := &loggedInBackend{}
 	cfg := Config{
 		DataDir: dir, Profile: "acct", Backend: "rod", AppURL: "https://app.chitchat.gg/",
-		APIBaseURL: "https://api.chitchat.gg", BrowserMode: true, AttachedBackend: fb,
+		APIBaseURL: "https://api.chitchat.gg", AttachedBackend: fb,
 		LoginInfoPath: filepath.Join(dir, "login_info_acct.json"),
 	}
 	p := profilePaths(cfg)

@@ -25,12 +25,11 @@ import (
 )
 
 type RodBackend struct {
-	browser             *rod.Browser
-	page                *rod.Page
-	startURL            string
-	disablePageRecovery bool
-	stopProxyAuth       func()
-	options             Options
+	browser       *rod.Browser
+	page          *rod.Page
+	startURL      string
+	stopProxyAuth func()
+	options       Options
 	// proc/exitCh own the Chrome process this backend launched (launchRodBrowser
 	// starts it manually, so rod's CDP Browser.close alone can leave the whole
 	// Chrome process tree orphaned when Stop fails or the connection died).
@@ -96,13 +95,11 @@ func (b *RodBackend) Start(ctx context.Context, options Options) error {
 
 	b.page = page
 	b.startURL = options.StartURL
-	b.disablePageRecovery = options.DisablePageRecovery
 	return nil
 }
 
 // preparePage installs the timezone/locale emulation and the stealth init
-// script on a page BEFORE it loads the app. Called for the start page and
-// for every page recoverPage adopts.
+// script on the start page BEFORE it loads the app.
 func (b *RodBackend) preparePage(page *rod.Page) error {
 	var firstErr error
 	if b.options.Timezone != "" {
@@ -559,8 +556,6 @@ func (b *RodBackend) Fetch(ctx context.Context, req FetchRequest) (FetchResponse
 
 func (b *RodBackend) withPageRetry(ctx context.Context, run func(page *rod.Page) error) error {
 	if b.closed.Load() {
-		// Stopped/closed backends never recover a page: recovery used to
-		// recreate a tab that looked like the browser "auto reopened".
 		return ErrPageUnavailable
 	}
 	page, err := b.currentPage(ctx)
@@ -572,70 +567,39 @@ func (b *RodBackend) withPageRetry(ctx context.Context, run func(page *rod.Page)
 	if !isRecoverablePageError(err) {
 		return err
 	}
-	if b.disablePageRecovery {
-		return ErrPageUnavailable
+
+	// The SPA can destroy its JS execution context while it navigates.
+	// Retry on the SAME page only. Never adopt another target and never
+	// create a new page/window: if the owner (or Stop) closed this page,
+	// it must stay closed and the caller must end the worker.
+	for attempt := 0; attempt < 4; attempt++ {
+		if b.closed.Load() {
+			return ErrPageUnavailable
+		}
+		timer := time.NewTimer(400 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
+		page, err = b.currentPage(ctx)
+		if err != nil {
+			return err
+		}
+		err = run(page)
+		if !isRecoverablePageError(err) {
+			return err
+		}
 	}
-
-	fmt.Println("rod: page session was lost, recovering active page")
-
-	page, recoverErr := b.recoverPage(ctx)
-	if recoverErr != nil {
-		return recoverErr
-	}
-
-	return run(page)
+	return fmt.Errorf("%w: %v", ErrPageUnavailable, err)
 }
 
 func (b *RodBackend) currentPage(ctx context.Context) (*rod.Page, error) {
-	if b.page == nil {
+	if b.closed.Load() || b.page == nil {
 		return nil, ErrPageUnavailable
 	}
 	return b.page.Context(ctx), nil
-}
-
-func (b *RodBackend) recoverPage(ctx context.Context) (*rod.Page, error) {
-	if b.closed.Load() || b.browser == nil {
-		return nil, ErrPageUnavailable
-	}
-
-	pages, err := b.browser.Pages()
-	if err != nil {
-		return nil, err
-	}
-
-	for _, candidate := range pages {
-		info, err := candidate.Info()
-		if err != nil {
-			if isRecoverablePageError(err) {
-				continue
-			}
-			continue
-		}
-
-		if strings.HasPrefix(info.URL, b.startURL) || strings.HasPrefix(info.URL, "https://app.chitchat.gg/") {
-			_ = b.preparePage(candidate) // timezone/locale apply immediately; init script for next loads
-			b.page = candidate
-			return candidate.Context(ctx), nil
-		}
-	}
-
-	page, err := b.browser.Page(proto.TargetCreateTarget{URL: "about:blank"})
-	if err != nil {
-		return nil, err
-	}
-	if err := b.preparePage(page); err != nil {
-		fmt.Printf("rod: page emulation setup failed: %v\n", err)
-	}
-	if err := page.Navigate(b.startURL); err != nil {
-		return nil, err
-	}
-
-	if err := page.WaitLoad(); err != nil && !isRecoverablePageError(err) {
-		return nil, err
-	}
-
-	b.page = page
-	return page.Context(ctx), nil
 }
 
 func isRecoverablePageError(err error) bool {

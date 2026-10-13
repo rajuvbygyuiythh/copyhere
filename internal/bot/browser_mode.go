@@ -16,7 +16,9 @@ package bot
 //     and wait, instead of stopping;
 //  4. Stop (or any exit) → capture the session once more, save
 //     login_info.json, close the browser.
-// Everything here is only used when Config.BrowserMode is true.
+// This is now the bot's only browser path: Classic/login-capture mode was
+// removed, so every worker either adopts an already-open live window or
+// opens one and chats through it until Stop.
 
 import (
 	"context"
@@ -176,26 +178,29 @@ func resolveWindowTimezone(ctx context.Context, cfg Config, selectedProxy *proxy
 	logf(cfg, "[timezone] Proxy %s exit country %s → browser timezone set to %s before launch.\n", selectedProxy.Address(), orDefault(country, "?"), zone)
 }
 
-// browserWindowOptions builds the launch options used by every window the
-// bot opens (classic login capture, browser mode, fresh login): stealth and
-// low-memory flags always on, timezone already resolved from the proxy's
-// exit country by resolveWindowTimezone (empty = PC timezone), socket tap
-// on in Browser mode so match chats are visible to the bot.
+// browserWindowOptions builds the launch options used by every live window
+// the bot opens: stealth and low-memory flags always on, timezone already
+// resolved from the proxy's exit country by resolveWindowTimezone (empty =
+// PC timezone), and the socket tap on so match chats are visible to the bot.
+// Page recovery is disabled: if this window's page is closed, the worker
+// stops and Stop/backend Close kills the process — the backend must never
+// recreate a page or window behind the owner's back.
 func browserWindowOptions(cfg Config, userDataDir string, selectedProxy *proxy.Entry) browser.Options {
 	zone := ""
 	if selectedProxy != nil {
 		zone = strings.TrimSpace(selectedProxy.Timezone)
 	}
 	return browser.Options{
-		StartURL:    cfg.AppURL,
-		UserDataDir: userDataDir,
-		Headless:    cfg.Headless,
-		Proxy:       selectedProxy,
-		Timezone:    zone,
-		Locale:      "en-US",
-		Stealth:     true,
-		LowMemory:   true,
-		SocketTap:   cfg.BrowserMode,
+		StartURL:            cfg.AppURL,
+		UserDataDir:         userDataDir,
+		Headless:            false,
+		DisablePageRecovery: true,
+		Proxy:               selectedProxy,
+		Timezone:            zone,
+		Locale:              "en-US",
+		Stealth:             true,
+		LowMemory:           true,
+		SocketTap:           true,
 
 		HardwareConcurrency: browser.PickHardwareConcurrency(cfg.Profile),
 	}
@@ -298,13 +303,9 @@ func openBrowserSession(ctx context.Context, cfg Config, p paths, saved model.Lo
 		}
 	}
 
-	mode := "visible"
-	if cfg.Headless {
-		mode = "headless"
-	}
 	resolveWindowTimezone(ctx, cfg, selectedProxy)
 	opts := browserWindowOptions(cfg, userDataDir, selectedProxy)
-	logf(cfg, "[browser] Browser mode on: opening %s %s window for %q (profile data: %s, timezone %s). It stays open until you press Stop.\n", mode, cfg.Backend, cfg.Profile, userDataDir, zoneOrSystem(opts.Timezone))
+	logf(cfg, "[browser] Live browser mode: opening one visible %s window for %q (profile data: %s, timezone %s). It stays open until you press Stop and is never recreated automatically if closed.\n", cfg.Backend, cfg.Profile, userDataDir, zoneOrSystem(opts.Timezone))
 
 	// Start with the WORKER context, not context.Background(): if the owner
 	// presses Stop while Chrome is still launching (slow cold start through

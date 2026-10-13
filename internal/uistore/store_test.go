@@ -16,8 +16,10 @@ func TestSettingsAndLogsRoundTrip(t *testing.T) {
 	defer uiStore.Close()
 
 	browser := model.BrowserSettings{
-		Profile: "account2",
-		Backend: "chromedp",
+		Profile:     "account2",
+		Backend:     "chromedp",
+		Headless:    true,
+		BrowserMode: false, // old Classic setting must migrate to live-only
 	}
 	if err := uiStore.SaveBrowserSettings(browser); err != nil {
 		t.Fatalf("save browser settings: %v", err)
@@ -41,6 +43,9 @@ func TestSettingsAndLogsRoundTrip(t *testing.T) {
 	}
 	if gotBrowser.Profile != browser.Profile || gotBrowser.Backend != browser.Backend {
 		t.Fatalf("unexpected browser settings: %#v", gotBrowser)
+	}
+	if !gotBrowser.BrowserMode || gotBrowser.Headless {
+		t.Fatalf("browser settings must be forced to the visible live mode: %#v", gotBrowser)
 	}
 
 	gotMessage, err := uiStore.LoadMessageSettings()
