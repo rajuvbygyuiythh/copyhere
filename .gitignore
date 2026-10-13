@@ -1,0 +1,20 @@
+# Runtime-only data: never commit accounts, sessions, cookies, logs, or Badger DB files.
+data/
+
+# Local/browser/build artefacts
+build/
+/dist/
+release/
+.tmp*
+.gocache/
+
+# Editor and OS files
+.vscode/
+.idea/
+*.log
+*.zip
+.DS_Store
+Thumbs.db
+
+# published download zips (small, rebuilt from HEAD on request)
+!downloads/*.zip

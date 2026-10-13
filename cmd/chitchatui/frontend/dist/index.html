@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ChitChat Bot</title>
+  <link rel="stylesheet" href="./styles.css?v=2">
+</head>
+<body>
+  <div id="license-overlay" class="license-overlay" style="display: none;">
+    <div class="license-card">
+      <h2>License Required</h2>
+      <p id="license-message">Your license is invalid or expired.</p>
+      <div class="license-key-box">
+        <input type="text" id="license-key-input" readonly>
+        <button id="copy-license-btn" class="primary-button">Copy</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">CB</div>
+        <div>
+          <div class="brand-title">ChitChat Bot</div>
+          <div class="brand-subtitle">Wails + Badger</div>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <button class="nav-button active" data-tab="home">Home</button>
+        <button class="nav-button" data-tab="proxy">Proxy</button>
+        <button class="nav-button" data-tab="message">Message</button>
+        <button class="nav-button" data-tab="browser">Browser</button>
+        <button class="nav-button" data-tab="setting">Setting</button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="status-row">
+          <span class="status-label">Bot</span>
+          <span id="running-pill" class="pill stopped">Stopped</span>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <section class="tab-panel active" data-panel="home">
+        <header class="panel-header">
+          <div>
+            <h1>Home</h1>
+            <p>Start the bot and watch the live log stream.</p>
+          </div>
+          <div class="actions">
+            <button id="open-live-wall" class="secondary-button" title="Open the Live Wall (browser mirror of this screen)">Live Wall</button>
+            <button id="clean-profiles" class="secondary-button">Clean</button>
+            <button id="refresh-state" class="secondary-button">Refresh</button>
+            <button id="clear-logs" class="secondary-button">Clear Logs</button>
+            <button id="stop-bot" class="secondary-button">Stop</button>
+            <button id="start-bot" class="primary-button">Start Bot</button>
+          </div>
+        </header>
+
+        <div class="log-toolbar">
+          <span id="home-summary" class="summary-text">Loading state...</span>
+        </div>
+
+        <div class="home-stats">
+          <div class="stat-capsule">
+            <span>Bot accounts</span>
+            <strong id="stat-bot-accounts">0</strong>
+          </div>
+          <div class="stat-capsule">
+            <span>Running</span>
+            <strong id="stat-running-accounts">0</strong>
+          </div>
+          <div class="stat-capsule">
+            <span>User loaded</span>
+            <strong id="stat-user-send">0</strong>
+          </div>
+          <div class="stat-capsule">
+            <span>Traffic users</span>
+            <strong id="stat-traffic-users">0</strong>
+          </div>
+          <div class="stat-capsule">
+            <span>Messages sent</span>
+            <strong id="stat-messages-sent">0</strong>
+          </div>
+          <div class="stat-capsule">
+            <span>snap/tg/user :</span>
+            <strong id="stat-snap-tg-user">0</strong>
+          </div>
+          <div class="stat-capsule danger" title="Accounts ChitChat reports as banned / flagged (403) or with 10 failed sends in a row. Their workers stop; the rest keep running.">
+            <span>Dead / banned</span>
+            <strong id="stat-dead-accounts">0</strong>
+          </div>
+          <div class="stat-capsule warning">
+            <span>Skip</span>
+            <strong id="stat-skipped-accounts">0</strong>
+          </div>
+          <div class="stat-capsule" title="Matched chats where the user wrote first and the bot only replied">
+            <span>User first</span>
+            <strong id="stat-user-first">0</strong>
+          </div>
+          <div class="stat-capsule" title="Matched chats the bot opened">
+            <span>Bot first</span>
+            <strong id="stat-bot-first">0</strong>
+          </div>
+          <div class="stat-capsule warning" title="Workers in a shift rest / platform-limit cooldown (DM replies continue)">
+            <span>Resting</span>
+            <strong id="stat-resting-accounts">0</strong>
+          </div>
+        </div>
+
+        <div id="log-list" class="log-list"></div>
+      </section>
+
+      <section class="tab-panel" data-panel="proxy">
+        <header class="panel-header">
+          <div>
+            <h1>Proxy</h1>
+          </div>
+        </header>
+
+        <form id="proxy-form" class="form-grid">
+          <label class="checkbox-row">
+            <input type="checkbox" id="proxy-enabled">
+            <span>Enable proxy</span>
+          </label>
+
+          <label>
+            <span>Proxy lines</span>
+            <textarea id="proxy-entries" rows="8" placeholder="1.2.3.4:8080&#10;1.2.3.5:8080:user:pass"></textarea>
+          </label>
+
+          <div class="hint-text">
+            Allowed formats: <code>ip:port</code>, <code>ip:port:user:pass</code>, or URL form like <code>socks5://user:pass@ip:port</code>. Plain lines default to HTTP proxy.
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="primary-button">Save Proxy</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="tab-panel" data-panel="message">
+        <header class="panel-header">
+          <div>
+            <h1>Message <span id="ui-build-tag" style="font-size:0.5em; font-weight:normal; color:var(--muted); vertical-align:middle;">UI build 2026-10-14f · 4 chat modes · browser match fix · auto timezone</span></h1>
+            <p>One line equals one bot message step. Line 1 is first message, line 2 is second reply, line 3 is third reply, and so on.</p>
+          </div>
+        </header>
+
+        <form id="message-form" class="form-grid">
+          <div class="chat-mode-card">
+            <span class="mode-label">Select Chat Mode:</span>
+            <div class="mode-options">
+              <label class="mode-option" id="mode-option-single">
+                <input type="radio" name="chat-mode" value="single" id="chat-mode-single" checked>
+                <span>Single Sequence</span>
+              </label>
+              <label class="mode-option" id="mode-option-folder">
+                <input type="radio" name="chat-mode" value="folder" id="chat-mode-folder">
+                <span>Folder Sequences</span>
+              </label>
+              <label class="mode-option" id="mode-option-evachat">
+                <input type="radio" name="chat-mode" value="eva_chat_flow" id="chat-mode-evachat">
+                <span>EVAChat Flow</span>
+              </label>
+              <label class="mode-option" id="mode-option-apichat">
+                <input type="radio" name="chat-mode" value="api_chat" id="chat-mode-apichat">
+                <span>API Chat</span>
+              </label>
+            </div>
+          </div>
+
+          <input type="checkbox" id="use-loaded-sequences" style="display: none;">
+
+          <div id="section-single-mode">
+            <label>
+              <span>Message sequence (Single)</span>
+              <textarea id="message-sequence" rows="8" placeholder="hello how are you %username%&#10;ok i am checking. wait a bit.&#10;{hello|hi|helo}{how|hw}"></textarea>
+            </label>
+            <div class="hint-text">
+              Each new line is the next message the bot sends for that conversation step. Template format: <code>{hello|hi|helo}{how|hw}</code>.
+            </div>
+          </div>
+
+          <div id="section-folder-mode" style="display: none;">
+            <div class="form-actions" style="margin-bottom: 8px;">
+              <button type="button" id="load-folder-btn" class="secondary-button">Load Folder</button>
+              <button type="button" id="clean-loaded-btn" class="danger-button" style="margin-left: 10px;">Clean Loaded</button>
+              <span id="loaded-sequences-status" style="margin-left: 10px; font-size: 0.9em; color: var(--muted);"></span>
+            </div>
+            <div class="hint-text">
+              Loads multiple chat sequence files (<code>.txt</code>) from a folder. The bot picks a random sequence per user.
+            </div>
+          </div>
+
+          <div id="section-evachat-mode" style="display: none;">
+            <div class="form-actions" style="margin-bottom: 8px;">
+              <button type="button" id="open-evachat-folder-btn" class="secondary-button">Open EVAChat Data Folder</button>
+              <span id="evachat-status" style="margin-left: 10px; font-size: 0.9em; color: var(--muted);">TXT data is initialized when EVAChat Flow starts.</span>
+            </div>
+            <div class="hint-text">
+              EVAChat Flow is a stateful TXT-driven conversation engine (no API; for AI chat use the <strong>API Chat</strong> mode). Edit <code>data/eva_chat/input/</code> for user-message triggers and <code>data/eva_chat/output/</code> for reply pools. The same file name connects a trigger category to its replies (see docs/CHAT_ENGINE_MAPPING.md). Fill the Usernames list: share_snap.txt uses %username%. Changes are loaded when the bot starts.
+            </div>
+          </div>
+
+          <div id="section-apichat-mode" style="display: none;">
+            <div class="hint-text" style="margin-bottom: 10px;">
+              <div style="margin-bottom:8px;">
+                <strong>API Chat</strong> — the AI writes every line; the built-in director decides the funnel (interest tiers, when the snap is shared, hint / direct / no-snap chats). The snap handle is never written by the AI — it comes from <code>data\api_chat\snap_share.txt</code>; usernames from the list below, one per stranger from a shuffled deck.
+              </div>
+              <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+                <label><span>API base URL (OpenAI-compatible)</span><input type="text" id="apichat-base-url" placeholder="https://api.featherless.ai/v1"></label>
+                <label><span>Model</span><input type="text" id="apichat-model" placeholder="deepseek-ai/DeepSeek-V3-0324"></label>
+                <label style="grid-column: 1 / span 2;"><span>API key (stored only in local data/)</span><input type="password" id="apichat-api-key" placeholder="your api key"></label>
+              </div>
+              <div class="form-actions" style="margin-top:6px;">
+                <button type="button" id="apichat-test-btn" class="secondary-button">Test API</button>
+                <button type="button" id="open-apichat-folder-btn" class="secondary-button" style="margin-left:10px;">Open API Chat Data Folder</button>
+                <span id="apichat-status" style="margin-left:10px; font-size:0.9em; color: var(--muted);"></span>
+              </div>
+            </div>
+            <div class="hint-text" style="margin-bottom: 10px;">
+              <strong>Funnel rules</strong> (when the snap is shared, % of chats with no snap, hint-first %) are not dashboard settings — edit ONE file: <code>cmd\apitest\config_rules.json</code> (used by the bot and by the apitest lab), then restart the bot. The Test API result and the start log show the rules that were loaded and from which file. (Only if the project folder is not found does the bot fall back to <code>data\api_chat\config_rules.json</code>.)
+            </div>
+          </div>
+
+          <label>
+            <span>Snap / Telegram users</span>
+            <textarea id="message-usernames" rows="5" placeholder="@snap_user_one&#10;telegram_user_two&#10;snap_user_three"></textarea>
+          </label>
+          <div class="hint-text">
+            Use <code>%username%</code> anywhere in message templates to insert one random Snap / Telegram handle.
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="primary-button">Save Messages</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="tab-panel" data-panel="browser">
+        <header class="panel-header">
+          <div>
+            <h1>Browser</h1>
+            <p>Select the browser backend and profile used for login capture, or turn on Browser mode to keep the window open and chat through it.</p>
+          </div>
+        </header>
+
+        <form id="browser-form" class="form-grid">
+          <div id="browser-options" class="browser-options"></div>
+
+          <label>
+            <span>Profile</span>
+            <input type="text" id="browser-profile" placeholder="default">
+          </label>
+
+          <label class="checkbox-row">
+            <input type="checkbox" id="browser-headless">
+            <span>Headless mode</span>
+          </label>
+
+          <div class="hint-text">
+            If the saved login is missing or expired, the selected backend will open the login browser.
+          </div>
+
+          <h3 style="margin:14px 0 6px;">Run mode <span id="browser-mode-status" class="hint-text" style="margin-left:8px;"></span></h3>
+          <div class="browser-options" id="browser-mode-options">
+            <label class="browser-choice" id="browser-mode-option-classic">
+              <div class="browser-choice-title">
+                <input type="radio" name="browser-run-mode" id="browser-mode-classic" value="classic">
+                <span>1. Classic — login capture only</span>
+              </div>
+              <div class="browser-choice-description">
+                Exactly as before. The browser opens only when the saved login is missing or expired, saves <code>login_info.json</code> and <strong>closes right after login</strong>. The bot then chats from the app (API + websocket). Headless applies here.
+              </div>
+            </label>
+            <label class="browser-choice" id="browser-mode-option-live">
+              <div class="browser-choice-title">
+                <input type="radio" name="browser-run-mode" id="browser-mode" value="live">
+                <span>2. Browser mode — live window</span>
+              </div>
+              <div class="browser-choice-description">
+                One visible browser window per account opens at Start and <strong>stays open until you press Stop</strong> (or close it yourself). Login, matching and every message happen through that window — real cookies, real browser, no websocket; replies are read through the window every few seconds. Session expired → log in again in the window, the bot resumes. <strong>Stop</strong> saves the session and closes the window; next Start logs in automatically. Headless is ignored. One Chrome per account (~300–500 MB), so use it for a few accounts.
+              </div>
+            </label>
+          </div>
+          <div class="hint-text">Clicking a card saves the mode immediately. The Start log prints which mode is running. <strong>Run Fresh Browsers</strong> follows the mode too: in Browser mode a fresh window stays open after login and starts chatting right away.</div>
+
+          <div class="hint-text" style="margin-top:12px;">
+            <strong>Timezone is automatic</strong> (no setting here): before a window opens, the bot detects the exit country of that window's proxy and sets the browser timezone to match it — watch the <code>[timezone]</code> line in the log. No proxy (or country undetectable) → the window keeps your PC's own timezone. Manual override stays possible in the backend: add <code>|tz=America/Chicago</code> at the end of a proxy line. All windows also run with automation markers removed (no <code>navigator.webdriver</code>, no "controlled by software" bar), WebRTC local-IP leak blocked, realistic window size and low-memory flags. After login the log prints a <code>[browser] check:</code> line with what the site sees.
+          </div>
+
+          <div class="fresh-browser-card">
+            <div>
+              <div class="fresh-browser-title">Fresh Browser Run</div>
+            </div>
+
+            <div class="fresh-browser-controls">
+              <label>
+                <span>Count</span>
+                <input type="number" id="fresh-browser-count" min="1" max="5" value="1">
+              </label>
+
+              <button type="button" id="run-fresh-browsers" class="secondary-button">Run Fresh Browsers</button>
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="primary-button">Save Browser</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="tab-panel" data-panel="setting">
+        <header class="panel-header">
+          <div>
+            <h1>Setting</h1>
+            <p>Timing values are persisted and fed into the bot loop.</p>
+          </div>
+        </header>
+
+        <form id="general-form" class="form-grid two-column">
+          <label>
+            <span>Poll min seconds</span>
+            <input type="number" id="poll-min" min="1">
+          </label>
+
+          <label>
+            <span>Poll max seconds</span>
+            <input type="number" id="poll-max" min="1">
+          </label>
+
+          <label>
+            <span>Action min seconds</span>
+            <input type="number" id="action-min" min="1">
+          </label>
+
+          <label>
+            <span>Action max seconds</span>
+            <input type="number" id="action-max" min="1">
+          </label>
+
+          <label>
+            <span>Skip timeout min seconds</span>
+            <input type="number" id="match-reply-timeout-min" min="1">
+          </label>
+
+          <label>
+            <span>Skip timeout max seconds</span>
+            <input type="number" id="match-reply-timeout-max" min="1">
+          </label>
+
+          <label>
+            <span>Chat closed wait min seconds</span>
+            <input type="number" id="match-close-wait-min" min="0" placeholder="0 (no wait)">
+          </label>
+
+          <label>
+            <span>Chat closed wait max seconds</span>
+            <input type="number" id="match-close-wait-max" min="0" placeholder="0 (no wait)">
+          </label>
+
+          <label>
+            <span>Reply delay min seconds</span>
+            <input type="number" id="reply-delay-min" min="0" placeholder="0 (no wait)">
+          </label>
+
+          <label>
+            <span>Reply delay max seconds</span>
+            <input type="number" id="reply-delay-max" min="0" placeholder="0 (no wait)">
+          </label>
+
+          <div class="form-section-title" style="grid-column: 1 / -1; margin-top: 10px; font-weight: 600;">Human pacing (anti-limit / anti-bot)</div>
+
+          <label class="checkbox-row" style="grid-column: 1 / -1;">
+            <input type="checkbox" id="pacing-enabled">
+            <span>Enable human pacing: let users open most chats, work in shifts, cool down on platform limits</span>
+          </label>
+
+          <label>
+            <span>Bot opens first (% of matches, rest wait for the user)</span>
+            <input type="number" id="bot-first-percent" min="0" max="100" placeholder="30">
+          </label>
+
+          <label>
+            <span>Max matched chats per hour (per account)</span>
+            <input type="number" id="chats-per-hour-max" min="1" placeholder="30">
+          </label>
+
+          <label>
+            <span>Wait for user to speak min seconds (silent = skip)</span>
+            <input type="number" id="opener-wait-min" min="5" placeholder="45">
+          </label>
+
+          <label>
+            <span>Wait for user to speak max seconds</span>
+            <input type="number" id="opener-wait-max" min="5" placeholder="120">
+          </label>
+
+          <label>
+            <span>Bot opener delay min seconds</span>
+            <input type="number" id="bot-open-delay-min" min="0" placeholder="8">
+          </label>
+
+          <label>
+            <span>Bot opener delay max seconds</span>
+            <input type="number" id="bot-open-delay-max" min="0" placeholder="25">
+          </label>
+
+          <label>
+            <span>Shift active min minutes (limit hits at ~40-60)</span>
+            <input type="number" id="active-min" min="1" placeholder="25">
+          </label>
+
+          <label>
+            <span>Shift active max minutes</span>
+            <input type="number" id="active-max" min="1" placeholder="40">
+          </label>
+
+          <label>
+            <span>Rest min minutes</span>
+            <input type="number" id="rest-min" min="1" placeholder="10">
+          </label>
+
+          <label>
+            <span>Rest max minutes</span>
+            <input type="number" id="rest-max" min="1" placeholder="25">
+          </label>
+
+          <label>
+            <span>Cooldown after platform limit (429) minutes</span>
+            <input type="number" id="limit-cooldown" min="1" placeholder="20">
+          </label>
+
+          <div class="form-section-title" style="grid-column: 1 / -1; margin-top: 10px; font-weight: 600;">Live Wall</div>
+
+          <label class="checkbox-row">
+            <input type="checkbox" id="live-wall-enabled">
+            <span>Open Live Wall in browser when the bot starts (sci-fi full-screen mirror of Home)</span>
+          </label>
+
+          <label>
+            <span>Live Wall port (127.0.0.1 only)</span>
+            <input type="number" id="live-wall-port" min="1024" max="65535" placeholder="47321">
+          </label>
+
+          <div class="form-section-title" style="grid-column: 1 / -1; margin-top: 10px; font-weight: 600;">Debug</div>
+
+          <label class="checkbox-row" style="grid-column: 1 / -1;">
+            <input type="checkbox" id="debug-api-enabled">
+            <span>API trace — write every request to <code>data\debug\&lt;account&gt;_api.log</code> and show <code>[api]</code> lines (writes, errors, slow calls, rate limits) in the live log</span>
+          </label>
+
+          <div class="form-actions">
+            <button type="button" id="open-live-wall-folder" class="secondary-button">Background photos folder</button>
+            <button type="submit" class="primary-button">Save Settings</button>
+          </div>
+        </form>
+      </section>
+    </main>
+  </div>
+
+  <script src="./app.js?v=4"></script>
+</body>
+</html>

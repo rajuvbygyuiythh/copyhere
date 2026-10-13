@@ -1,0 +1,18 @@
+{
+  "_help": "API Chat funnel rules - ONE file for the bot and the apitest lab: cmd/apitest/config_rules.json. Edit, save, restart the bot (or the lab). The bot only falls back to data/api_chat/config_rules.json when the project folder cannot be found.",
+  "_share_turn": "bot reply number at which the snap is shared, by the stranger's interest (HOT = horny / very engaged, WARM = flirty / curious, COLD = normal / low). Smaller = earlier. If the stranger asks for the snap himself it is shared earlier.",
+  "share_hot": 4,
+  "share_warm": 6,
+  "share_cold": 8,
+
+  "_no_share_percent": "out of 100 chats, this many NEVER get the snap (no hint, no handle): the bot chats normally for no_share_min..no_share_max replies and then leaves. 0 = share in every chat (highest ban risk).",
+  "no_share_percent": 30,
+  "no_share_min_replies": 3,
+  "no_share_max_replies": 4,
+
+  "_no_share_strict": "false = in a no-snap chat the bot still gives the handle when the stranger asks for it himself (he asked, so it is not spam). true = decline even then ('dont rly use it lol').",
+  "no_share_strict": false,
+
+  "_hint_percent": "of the chats that DO share, this many % get a ghost hint first (snap_hint.txt, no handle): if the stranger bites (yes / snap? / add me) the handle follows next reply, if he ignores it the next reply shares anyway. The rest share directly.",
+  "hint_percent": 60
+}
