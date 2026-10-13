@@ -39,6 +39,9 @@ func (b *ChromeDPBackend) Start(parent context.Context, options Options) error {
 		chromedp.Flag("no-first-run", true),
 		chromedp.Flag("disable-popup-blocking", false),
 		chromedp.Flag("disable-extensions", true),
+		// no tray/background survival: the Chrome process must die with its
+		// window, otherwise a closed window can "reopen" via page recovery
+		chromedp.Flag("disable-background-mode", true),
 	)
 	if options.Stealth {
 		size := options.WindowSize

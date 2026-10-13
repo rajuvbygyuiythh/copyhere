@@ -245,7 +245,11 @@ var windowSlots sync.Map // profile dir -> chan struct{} (capacity 1)
 func acquireWindowSlot(ctx context.Context, cfg Config, key string) (func(), error) {
 	v, _ := windowSlots.LoadOrStore(key, make(chan struct{}, 1))
 	slot := v.(chan struct{})
-	release := func() { <-slot }
+	// Idempotent: a plain `<-slot` release called twice would block forever
+	// on the empty channel, wedging this worker AND every future window of
+	// the same profile behind it.
+	var once sync.Once
+	release := func() { once.Do(func() { <-slot }) }
 	select {
 	case slot <- struct{}{}:
 		return release, nil
@@ -261,9 +265,10 @@ func acquireWindowSlot(ctx context.Context, cfg Config, key string) (func(), err
 }
 
 // openBrowserSession starts the visible browser for this worker and returns
-// once the site is authenticated. The browser is started with a detached
-// context on purpose: Stop cancels the worker context, and we still need the
-// window alive for a moment to save the session before closing it.
+// once the site is authenticated. The browser starts on the worker context
+// so dashboard Stop aborts even a half-finished launch; the session save on
+// the way out (saveAndClose) uses its own short detached context, so
+// closing still gets its moment to persist the login before the window dies.
 func openBrowserSession(ctx context.Context, cfg Config, p paths, saved model.LoginInfo) (*browserSession, model.LoginInfo, error) {
 	if cfg.AttachedBackend != nil {
 		return adoptBrowserSession(ctx, cfg, p, saved)
@@ -301,7 +306,13 @@ func openBrowserSession(ctx context.Context, cfg Config, p paths, saved model.Lo
 	opts := browserWindowOptions(cfg, userDataDir, selectedProxy)
 	logf(cfg, "[browser] Browser mode on: opening %s %s window for %q (profile data: %s, timezone %s). It stays open until you press Stop.\n", mode, cfg.Backend, cfg.Profile, userDataDir, zoneOrSystem(opts.Timezone))
 
-	if err := backend.Start(context.Background(), opts); err != nil {
+	// Start with the WORKER context, not context.Background(): if the owner
+	// presses Stop while Chrome is still launching (slow cold start through
+	// a proxy can take many seconds), the launch must abort and kill the
+	// half-started process instead of finishing the launch first and only
+	// then "maybe" closing. The backend's own Close stays the guarantee for
+	// everything after Start returns.
+	if err := backend.Start(ctx, opts); err != nil {
 		return fail(fmt.Errorf("browser mode: could not start the browser: %w", err))
 	}
 	session := &browserSession{backend: backend, cfg: cfg, p: p, proxy: selectedProxy, release: release, zone: opts.Timezone}

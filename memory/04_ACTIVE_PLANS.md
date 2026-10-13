@@ -307,3 +307,14 @@ windows register with Stop from the moment they open; StopBot waits
 until every window is really closed. Details:
 `docs/BROWSER_MODE.md` ("Stop fully closes the browser"),
 `03_SESSION_LOG.md`. Awaiting the owner's real-Windows run.
+
+## P12b — Stop-audit round 2 — SHIPPED 2026-10-14 (UI 2026-10-14h)
+Owner asked to "find the bug and fix it". Round-2 audit of the same
+close paths: Browser-mode launch no longer ignores Stop mid-launch
+(worker ctx into `Backend.Start`, rod start-up page ops ctx-bound),
+both backends always launch with `--disable-background-mode` (kills the
+tray-survivor "auto reopen"), window-slot release is idempotent, Stop
+wait ceiling 20 s. Details: `docs/BROWSER_MODE.md` ("Stop audit
+round 2"), `03_SESSION_LOG.md`. Owner must re-run `install.bat` and see
+header tag `2026-10-14h` before judging; pre-14g orphan `chrome.exe`
+need one manual kill in Task Manager.

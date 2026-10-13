@@ -228,3 +228,31 @@ all fixed:
 Note: the Live Wall auto-open (Settings → Live Wall) still opens this
 PC's *default* browser at the wall page on Start — unrelated to the bot
 browser windows, and disableable in Settings.
+
+## Stop audit round 2 (UI 2026-10-14h)
+
+A second close-path audit found the remaining ways a window could outlive
+or outwait dashboard Stop:
+
+1. **Launch ignored Stop.** Browser mode started Chrome on
+   `context.Background()`, so a Stop pressed during a slow cold launch
+   (bundled Chromium + proxy) did nothing until the launch finished.
+   `openBrowserSession` now starts on the worker context, and rod threads
+   that context through the start-up page work: Stop aborts the launch
+   and the half-started process is killed. (The session save on the way
+   out deliberately keeps its own short detached context.)
+2. **Background-mode resurrection.** If the system Chrome has "continue
+   running background apps" on, closing the window leaves `chrome.exe`
+   alive and page recovery can pop a new window from it. Both backends
+   now always launch with `--disable-background-mode`.
+3. **Slot release could wedge a profile.** The per-profile window slot
+   used a bare channel receive as its release; a double release would
+   have blocked forever and jammed every future window of that profile.
+   Release is now idempotent.
+4. Stop's wait ceiling is 20 s, covering the worst realistic close chain
+   (session save ≤ 8 s, then graceful close + tree kill).
+
+Still true after the upgrade: Chrome processes orphaned by builds older
+than 2026-10-14g do not belong to any live backend and must be closed
+once by hand (Task Manager → end leftover `chrome.exe` from the bot's
+profile folders); the new build never leaves new ones.

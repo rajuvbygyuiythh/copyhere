@@ -64,6 +64,28 @@ func TestRodCloseKillsOrphanProcess(t *testing.T) {
 	}
 }
 
+// Stop pressed while Chrome is still launching must abort the launch at
+// once (the worker context reaches Browser.Start now). Whether this sandbox
+// has a Chrome binary or not, a cancelled context must come back with an
+// error quickly — never with a started browser.
+func TestRodStartWithCancelledContextFailsFast(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	b := &RodBackend{}
+	start := time.Now()
+	err := b.Start(ctx, Options{StartURL: "https://app.chitchat.gg/", UserDataDir: t.TempDir()})
+	if err == nil {
+		_ = b.Close()
+		t.Fatal("Start with a cancelled context must fail")
+	}
+	if elapsed := time.Since(start); elapsed > 10*time.Second {
+		t.Fatalf("cancelled Start took too long to abort: %v", elapsed)
+	}
+	if cerr := b.Close(); cerr != nil {
+		t.Fatalf("Close after aborted Start: %v", cerr)
+	}
+}
+
 func TestChromeDPCloseIdempotentAndBlocksUse(t *testing.T) {
 	b := &ChromeDPBackend{}
 	if err := b.Close(); err != nil {

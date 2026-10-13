@@ -72,21 +72,24 @@ func (b *RodBackend) Start(ctx context.Context, options Options) error {
 	b.options = options
 
 	// Open the page blank first so timezone/locale/stealth are in place
-	// before the app loads, then navigate.
+	// before the app loads, then navigate. All start-up page work runs on
+	// the caller's context: cancelling it (dashboard Stop) aborts a slow
+	// proxied page load immediately instead of waiting for it to finish.
 	page, err := browser.Page(proto.TargetCreateTarget{URL: "about:blank"})
 	if err != nil {
 		_ = b.Close()
 		return err
 	}
-	if err := b.preparePage(page); err != nil {
+	startPage := page.Context(ctx)
+	if err := b.preparePage(startPage); err != nil {
 		fmt.Printf("rod: page emulation setup failed: %v\n", err)
 	}
-	if err := page.Navigate(options.StartURL); err != nil {
+	if err := startPage.Navigate(options.StartURL); err != nil {
 		_ = b.Close()
 		return err
 	}
 
-	if err := page.WaitLoad(); err != nil && !isRecoverablePageError(err) {
+	if err := startPage.WaitLoad(); err != nil && !isRecoverablePageError(err) {
 		_ = b.Close()
 		return err
 	}
@@ -225,11 +228,15 @@ func applyRodLaunchOptions(l *launcher.Launcher, options Options) {
 		l.Set("no-default-browser-check")
 		l.Set("password-store", "basic")
 	}
+	// Background mode OFF unconditionally: with it on, closing the window
+	// leaves chrome.exe alive in the tray and a later page recovery can pop
+	// a fresh window open — the "browser reopened by itself" effect. The
+	// bot owns this profile, so the process must die with its window.
+	l.Set("disable-background-mode")
 	if options.LowMemory {
 		l.Set("renderer-process-limit", "2")
 		l.Set("disable-extensions")
 		l.Set("disable-component-update")
-		l.Set("disable-background-mode")
 		l.Set("disable-domain-reliability")
 		l.Set("disable-speech-api")
 		l.Set("no-pings")

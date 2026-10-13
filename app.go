@@ -783,7 +783,7 @@ func (a *App) StopBot() error {
 		a.log("info", "Stopping all bot workers.")
 	}
 	a.emitStatus(false)
-	a.waitForBrowsersClosed(done, 12*time.Second)
+	a.waitForBrowsersClosed(done, 20*time.Second)
 	return nil
 }
 
