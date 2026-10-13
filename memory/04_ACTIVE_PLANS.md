@@ -227,3 +227,50 @@ style, TXT handle appended); typing-delay review; registry contention
 ## P7 — small open item
 "chat list ato long → short": (a) compact apitest console status
 (`COMPACT=1`), or (b) earlier share thresholds. Owner has not answered.
+
+## P9 — Live Browser v2: never-close + stealth + lightweight (2026-10-14, PLAN, awaiting owner answers)
+
+Owner report after P8: "after account login the browser auto-closes again";
+wants: window NEVER closes (until Stop / he closes it), truly watchable live
+chat; browser must not leak local PC info (timezone, network/WebRTC, …);
+lighter browser (not 300 MB per account). Offered DevTools network captures.
+
+Findings from code (no logs yet):
+- Only two flows close a window after login: (1) Classic worker (`browser_mode`
+  false) and (2) **Run Fresh Browsers** (`app.go runFreshBrowser`: temp
+  user-data-dir → login → save `login_info_N.json` → `backend.Close()` →
+  temp dir removed) — this matches "login then close" exactly and is NOT
+  covered by Browser mode today.
+- Rod launcher default flags include `--enable-automation` (navigator.webdriver
+  = true + "controlled by automated software" bar) and `--no-startup-window`.
+  Nothing hides timezone/locale/WebRTC today. `chromedp.go` similar.
+
+Phase A — diagnose + never-close guarantee
+ A1. `[browser] Closing window — reason: <stop|worker error X|window gone>` on
+     every close path; Start log already prints the run mode.
+ A2. Run Fresh Browsers in Browser mode = "fresh login + handover": after the
+     login is saved the window stays open and a worker starts chatting in it
+     (Config.AttachedBackend; temp dir kept until Stop, removed after).
+ A3. Process watchdog: Chrome exit code logged if the process dies.
+Phase B — stealth (per window, consistent, minimal)
+ B1. Flags: drop `enable-automation`, add `disable-blink-features=AutomationControlled`,
+     `lang=en-US`, realistic random `window-size`, `webrtc-ip-handling-policy=disable_non_proxied_udp`
+     (no local IP leak through the proxy), keep popup blocking default.
+ B2. Timezone/locale per window via CDP `Emulation.setTimezoneOverride` /
+     `setLocaleOverride` (+ Accept-Language). Browser page setting "Timezone"
+     (default America/New_York) and optional per-proxy override.
+ B3. New-document init script: webdriver=false, languages en-US, plugins
+     non-empty, chrome.runtime stub. No WebGL/canvas spoofing (inconsistent
+     spoofs are worse than none).
+ B4. `[browser] check:` self-test log line per window (webdriver, tz, lang,
+     webrtc policy, public IP seen by the site vs proxy) so leaks are visible.
+Phase C — lightweight
+ C1. Memory flags per window (renderer-process-limit, no extensions, no
+     background apps) → ~150–250 MB.
+ C2. Shared Chrome: ONE process, one isolated browser context per account
+     (`Target.createBrowserContext` with per-context `proxyServer`, per-target
+     auth handler, cookies restored from login_info.json because contexts are
+     not persisted) → ~70–120 MB per account. New backend id `rod-shared`.
+Open questions sent to owner: which button closed it (Start vs Run Fresh
+Browsers) + log lines; timezone policy; shared-Chrome ok; which DevTools
+captures (header names/values WITHOUT cookies/tokens).
