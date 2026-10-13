@@ -240,6 +240,17 @@ type AccountState struct {
 	UserFirstCount   int `json:"user_first_count,omitempty"`
 	BotFirstCount    int `json:"bot_first_count,omitempty"`
 	UserFirstSkipped int `json:"user_first_skipped,omitempty"`
+	// API Chat username deck: a shuffled order over the dashboard Usernames
+	// list and a cursor, so every handle is used once before any repeats.
+	APIUsernameOrder  []int `json:"api_username_order,omitempty"`
+	APIUsernameCursor int   `json:"api_username_cursor,omitempty"`
+	// API Chat share counters (Home tiles / Live Wall).
+	APIShareDirect  int `json:"api_share_direct,omitempty"`
+	APIShareHint    int `json:"api_share_hint,omitempty"`
+	APIHintBite     int `json:"api_hint_bite,omitempty"`
+	APINoShareClose int `json:"api_no_share_close,omitempty"`
+	APIUserAsked    int `json:"api_user_asked,omitempty"`
+	APIErrors       int `json:"api_errors,omitempty"`
 }
 
 type BotState map[string]AccountState

@@ -20,6 +20,11 @@ const (
 	// ChatModeEVAChat is the third dashboard mode. It replaces the old
 	// keyword-only responder with the stateful EVAChat Flow engine.
 	ChatModeEVAChat = "eva_chat_flow"
+	// ChatModeAPIChat is the fourth dashboard mode: the AI (OpenAI-compatible
+	// API) writes every line and the apitest "director" decides the funnel
+	// (interest tiers, hint / direct / no-share split, snap share from
+	// data/api_chat/snap_share.txt). No TXT reply pools are used.
+	ChatModeAPIChat = "api_chat"
 	// ChatModeKeyword is retained only so existing saved settings can migrate
 	// safely. It is never exposed as a selectable dashboard mode.
 	ChatModeKeyword = "keyword"
@@ -41,6 +46,18 @@ type MessageSettings struct {
 	AIBaseURL string `json:"ai_base_url,omitempty"`
 	AIAPIKey  string `json:"ai_api_key,omitempty"`
 	AIModel   string `json:"ai_model,omitempty"`
+	// API Chat mode (shares ai_base_url / ai_api_key / ai_model above).
+	// APISettingsSaved marks that the funnel values below were saved at
+	// least once; before that, zero values mean "use defaults".
+	APISettingsSaved  bool `json:"api_settings_saved,omitempty"`
+	APIShareHot       int  `json:"api_share_hot,omitempty"`
+	APIShareWarm      int  `json:"api_share_warm,omitempty"`
+	APIShareCold      int  `json:"api_share_cold,omitempty"`
+	APINoSharePercent int  `json:"api_no_share_percent"`
+	APIHintPercent    int  `json:"api_hint_percent"`
+	APINoShareMin     int  `json:"api_no_share_min_replies,omitempty"`
+	APINoShareMax     int  `json:"api_no_share_max_replies,omitempty"`
+	APINoShareStrict  bool `json:"api_no_share_strict,omitempty"`
 }
 
 type ProxySettings struct {
@@ -260,6 +277,8 @@ func (s MessageSettings) EffectiveChatMode() string {
 	switch s.ChatMode {
 	case ChatModeEVAChat:
 		return ChatModeEVAChat
+	case ChatModeAPIChat:
+		return ChatModeAPIChat
 	case ChatModeKeyword:
 		// v1.0 stored the third mode as "keyword". Migrate it at read time
 		// rather than leaving existing users with a dead mode after upgrade.

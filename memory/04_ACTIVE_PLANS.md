@@ -15,7 +15,38 @@ contention at 700 accounts) → LATER.
 `be22ddc` snap_share deck, `598f740` share mix (no-share 30%, hint 60/40,
 username deck). Awaiting the owner's real-API run for a debug round.
 
-## P5-R — API-only chat brain in the MAIN bot — PROPOSED (supersedes P5; awaiting "go")
+## P5-R — API Chat mode in the MAIN bot — SHIPPED steps 1–5 + 7 (2026-10-14)
+
+Owner approved ("humm perfect") and asked for the API option INSIDE the
+Message page as a 4th chat mode. Shipped (commit after `1ff392b`):
+- `internal/bot/apichat/` — `brain.go` = verbatim port of apitest director /
+  persona / decks / roll / sanitise / polish (CLI parts dropped), `engine.go`
+  = bot-facing `Engine` (`New`, `Start`, `Reply`, `Test`, `Forget`,
+  `EnsureData`), embedded seeds in `assets/`, tests = apitest tests +
+  `engine_test.go` (mock HTTP server: direct / hint→direct / no-share close /
+  no-username close / API error fallback→close / restart turn numbering).
+- `internal/bot/api_chat.go` — bridge: `apiChatStart/Reply` behind
+  `evaChatStart/Reply` when `ChatMode == api_chat`; username deck per account
+  (`APIUsernameOrder/Cursor` in `AccountState`), counters `APIShareDirect/
+  Hint/HintBite/NoShareClose/UserAsked/Errors`, `data/api_chat/errors.log`.
+- `internal/model/ui.go` — `ChatModeAPIChat = "api_chat"`, settings
+  `api_settings_saved`, `api_share_hot/warm/cold`, `api_no_share_percent`,
+  `api_hint_percent`, `api_no_share_min/max_replies`, `api_no_share_strict`
+  (base URL / key / model reuse `ai_base_url/ai_api_key/ai_model`).
+- `app.go` — `SaveMessageSettings` accepts `api_chat`; worker config loads
+  `apichat.New(data/api_chat, opts)` (start fails with a clear message when
+  URL/key/model empty); `TestAPIChat(settings)`, `OpenAPIChatDataFolder()`.
+- Frontend — 4th radio "API Chat" + `section-apichat-mode` (URL/model/key,
+  Test API, Open folder, HOT/WARM/COLD, no-share %, hint %, min/max, strict).
+- Data folder `data\api_chat\{persona.txt,snap_share.txt,snap_hint.txt}`
+  seeded on first start / folder open; owner's edits win.
+REMAINING: step 6 caps (per-handle 30/day, per-account 12/h — still
+unconfirmed, OFF), counters on Home tiles + Live Wall (stored in
+bot_state already, not displayed yet), AI lead-in share lines are already in
+(from apitest). Owner must build on Windows (`install.bat`) and run a real
+chat; expect a debug round from pasted logs.
+
+### Original P5-R plan text (for reference)
 
 Owner decision 2026-10-14: in the main bot he will chat ONLY through the API.
 So the apitest brain becomes the main bot's engine when `ai_enabled` is on:

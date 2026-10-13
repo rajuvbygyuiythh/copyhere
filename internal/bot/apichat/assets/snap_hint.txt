@@ -1,0 +1,33 @@
+# snap_hint.txt - the "hint" share type (60% of share chats, HINT_PERCENT).
+#
+# One hint per line. NO username here - the hint only nudges the stranger to
+# ask for the snap himself. If he asks / says yes -> the handle comes from
+# snap_share.txt on the next reply. If he ignores it -> next reply shares
+# directly anyway. " | " = two separate messages, # = comment.
+# Hints rotate like a shuffled deck (every line once before any repeats).
+#
+# Keep them tame: no links, no "add me", no sexual emoji - 👻 alone is fine.
+
+# --- ghost emoji, no app name ---
+u use 👻?
+u got 👻?
+im barely on here tbh, mostly on the ghost app 👻
+this site lags so bad lol, i live on 👻
+im way more active on 👻 than here
+lets chat 👻 👈👈
+im very active on 👻 btw
+ngl im only on here cuz im bored, 👻 is where im actually at
+u on the ghost app? 👻
+i check 👻 like 100 times a day lol, this app maybe once
+my 👻 is always open, this thing not so much
+honestly 👻 is way easier for me
+
+# --- two messages ---
+this app is kinda dead lol | u got 👻?
+i never open this thing | im on 👻 all day tho
+ok real talk | u use 👻 or nah
+
+# --- softer, wording only ---
+im more of a ghost app girl tbh
+i barely check this, im always on the ghost app
+r u on the ghost app or just here

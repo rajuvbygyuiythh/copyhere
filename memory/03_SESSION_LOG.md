@@ -49,3 +49,17 @@ Format: date · commit(s) · what · why/notes. Older history condensed.
 - Owner clarified: main bot will chat ONLY via API → P5 reframed as P5-R
   (apitest brain as main-bot engine behind `ai_enabled`; TXT = fallback).
   Plan written, no code. Memory updated.
+
+## 2026-10-14 — P5-R shipped: API Chat = 4th chat mode
+- Owner: "humm perfect" on P5-R, then: dashboard Message page must show the
+  API option INSIDE it as a 4th mode (Single / Folder / EVAChat / API) —
+  "eta fix koren".
+- Code: `internal/bot/apichat/{brain.go,engine.go,assets/,*_test.go}`,
+  `internal/bot/api_chat.go`, `internal/bot/eva_chat.go` (API hook in
+  `evaChatEnabled/Start/Reply`, `EVAChatConfig.API`), `internal/model/ui.go`
+  + `model.go`, `app.go` (`TestAPIChat`, `OpenAPIChatDataFolder`, worker
+  config), frontend `index.html` + `app.js` (4th radio + panel).
+- Verification: `memory/scripts/offline_typecheck.sh` → vet + Windows build
+  (stubbed deps) + tests (`internal/bot`, `apichat`, `apitest`) all green.
+- Not done: caps (unconfirmed), Home/Live Wall tiles for the API counters.
+

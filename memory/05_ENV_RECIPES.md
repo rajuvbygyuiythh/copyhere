@@ -31,7 +31,15 @@ answering `/v1/chat/completions` with `{"choices":[{"message":{"content":...}}],
 `apitest.config.txt` (`BASE_URL=http://127.0.0.1:8091/v1`), persona/scenarios/
 snap_*.txt copied in; `./apitest scenario <name>`.
 
-## Root package (main bot) verify — needs an out-of-repo build dir
+## Root package (main bot) verify — ONE COMMAND (2026-10-14)
+`bash memory/scripts/offline_typecheck.sh` — copies the repo to `/tmp/_gotest`,
+drops rod/chromedp browser files, stubs gorilla/websocket, utls, x/net/proxy,
+wails, badger, wmi with tiny packages, then `go vet` internal pkgs,
+`GOOS=windows go build .` and runs the dep-free tests. If a new external
+symbol is used, add it to the stub in the script. `internal/uistore` tests
+fail under the badger stub — expected.
+
+## (older notes) Root package verify — out-of-repo build dir
 Root module deps are unreachable offline (GOPROXY=off, no module cache after
 reset). Recipe used before: `/home/user/_gotest` = copy of the repo with
 `go.mod` replace directives + a compile stub for `go-toast` in

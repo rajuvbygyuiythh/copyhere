@@ -50,3 +50,8 @@ Earlier turns are summarised; from 2026-10-14 on, one entry per turn.
 8. Owner: "ami main bot-e just API diye chat korbo, so tumi just API chat er
    logic rules setup niye bhabo, baki kichu bhabte hobe na" → P5 replaced by
    P5-R (API-only brain plan, 7 steps); asked for "go" + keep caps?
+9. Owner: "humm perfect" (P5-R accepted) → then with a screenshot of the
+   Message page (3 mode cards): "dashboard-e Message page-e API option
+   thakbe, total 4 ta mode — eta fix koren" → implemented P5-R with the 4th
+   mode "API Chat" in the Message page (this turn).
+

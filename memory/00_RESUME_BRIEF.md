@@ -1,4 +1,4 @@
-# 00 — RESUME BRIEF (always current; last update: 2026-10-14, Asia/Dhaka)
+# 00 — RESUME BRIEF (always current; last update: 2026-10-14 (P5-R shipped), Asia/Dhaka)
 
 ## Where we are (one paragraph)
 
@@ -15,6 +15,12 @@ API and pastes output; agent fixes bugs from that output.
 
 ## Last thing done (most recent turn first)
 
+0. **P5-R SHIPPED — "API Chat" = 4th chat mode on the Message page.**
+   New `internal/bot/apichat/` (apitest brain ported 1:1 + `Engine`),
+   `internal/bot/api_chat.go` bridge, model/settings/app.go/frontend wiring,
+   data folder `data\api_chat\`. All vet/tests green via the offline stub
+   build (`memory/scripts/offline_typecheck.sh`). Owner has NOT yet built it
+   on Windows → next message is probably a build/run log to debug.
 1. **Memory folder created** (`memory/`, this file) + `AGENTS.md` §0 resume
    protocol. Owner asked for real-time memory so no re-explaining is needed.
 2. **Plan delivered (not coded)**: port the share-mix to the MAIN bot
@@ -29,7 +35,10 @@ API and pastes output; agent fixes bugs from that output.
 
 ## Open decisions waiting on the owner (ask these first)
 
-- **P5 REVISED (2026-10-14)**: owner said *"main bot-e ami just API diye chat
+- **Caps** (per-handle 30/day, per-account 12 shares/hour) still
+  unconfirmed → not implemented (OFF). Counters are stored but not shown on
+  Home/Live Wall yet.
+- (history) **P5 REVISED (2026-10-14)**: owner said *"main bot-e ami just API diye chat
   korbo — only API chat logic/rules, nothing else"*. So P5 is no longer
   "port share-mix into the TXT engine"; it is **"make the apitest brain
   (director + persona + decks + share mix) the main bot's chat engine when
@@ -43,11 +52,9 @@ API and pastes output; agent fixes bugs from that output.
 
 ## Exact next steps (in order)
 
-1. On "go": implement P5-R step 1–2 (new package `internal/bot/apichat`
-   ported from `apitest/main.go` + wiring in `logic.go` behind the existing
-   `ai_enabled` switch), then 3–5 (data files, settings, fallback policy),
-   tests, Windows build, push, zips, memory.
-2. Then caps + counters (P5-R step 6–7).
+1. Wait for the owner's Windows build/run of API Chat mode; fix whatever the
+   pasted log shows (`[api]` lines in the dashboard log, `data\api_chat\errors.log`).
+2. Then P5-R leftovers: caps (if confirmed), API counters on Home + Live Wall.
 3. Later (Step 4 leftovers): silent-user follow-up, AI lead-in on the share
    turn in the main bot (as apitest does), reply typing delays review.
 4. Update the Drive handoff docs when a milestone lands (ids in
@@ -56,8 +63,9 @@ API and pastes output; agent fixes bugs from that output.
 ## Sandbox state (may be gone after a reset — see `05_ENV_RECIPES.md`)
 
 - Go toolchain `/home/user/gotool/go` (1.27.2 via PyPI `go-bin`); if missing
-  reinstall (recipe in 05). `/home/user/_gotest` (root-pkg build dir) and
-  go-toast stub are usually gone → recreate only when a root build is needed.
+  reinstall (recipe in 05). Whole-project offline type-check/build:
+  `bash memory/scripts/offline_typecheck.sh` (stubs all external deps in
+  `/tmp/_gotest`; proves compile, not a release binary).
 - Live Wall preview process may be dead; recipe in 05 (`livewalldemo -port
   47401 -listen 0.0.0.0:47400`).
 - After a reset: `git fetch origin && git reset origin/arena/30e64ce8-copyhere

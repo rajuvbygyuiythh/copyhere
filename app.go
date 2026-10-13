@@ -392,6 +392,8 @@ func (a *App) SaveMessageSettings(settings model.MessageSettings) error {
 	case model.ChatModeEVAChat, model.ChatModeKeyword:
 		settings.ChatMode = model.ChatModeEVAChat
 		settings.UseLoadedSequences = false
+	case model.ChatModeAPIChat:
+		settings.UseLoadedSequences = false
 	case model.ChatModeFolder:
 		settings.UseLoadedSequences = true
 	case model.ChatModeSingle:
@@ -546,6 +548,47 @@ func (a *App) OpenEVAChatDataFolder() (string, error) {
 		return "", err
 	}
 	summary := fmt.Sprintf("EVAChat data folder ready: %s (%d trigger categories, %d reply pools)", dataRoot, len(engine.InputCategories()), len(engine.OutputPools()))
+	a.log("info", summary)
+	return summary, nil
+}
+
+// OpenAPIChatDataFolder seeds data/api_chat/ (persona.txt, snap_share.txt,
+// snap_hint.txt) and opens it in Explorer.
+func (a *App) OpenAPIChatDataFolder() (string, error) {
+	dataRoot, err := bot.EnsureAPIChatData(a.dataDir)
+	if err != nil {
+		return "", err
+	}
+	summary := fmt.Sprintf("API Chat data folder ready: %s (persona.txt, snap_share.txt, snap_hint.txt)", dataRoot)
+	a.log("info", summary)
+	if openErr := exec.Command("explorer.exe", dataRoot).Start(); openErr != nil {
+		a.log("warn", fmt.Sprintf("Could not open folder: %v", openErr))
+	}
+	return summary, nil
+}
+
+// TestAPIChat sends one small request through the API Chat engine (unsaved
+// panel values are used, so the owner can test before saving).
+func (a *App) TestAPIChat(settings model.MessageSettings) (string, error) {
+	dataRoot, err := bot.EnsureAPIChatData(a.dataDir)
+	if err != nil {
+		return "", err
+	}
+	engine, err := bot.LoadAPIChat(dataRoot, settings)
+	if err != nil {
+		return "", err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	answer, err := engine.Test(ctx)
+	if err != nil {
+		a.log("error", fmt.Sprintf("API Chat test failed: %v", err))
+		return "", err
+	}
+	summary := fmt.Sprintf("API OK -> %q | %s", answer, engine.Describe())
+	for _, w := range engine.Warns {
+		summary += " | WARN: " + w
+	}
 	a.log("info", summary)
 	return summary, nil
 }
@@ -783,6 +826,21 @@ func (a *App) buildBotConfigs() ([]bot.Config, error) {
 		evaChatConfig = &bot.EVAChatConfig{DataRoot: dataRoot, Engine: engine, AI: ai}
 		a.log("info", fmt.Sprintf("EVAChat Flow ready: %d trigger categories and %d reply pools loaded from %s. %s", len(engine.InputCategories()), len(engine.OutputPools()), dataRoot, ai.Describe()))
 	}
+	if messageSettings.EffectiveChatMode() == model.ChatModeAPIChat {
+		dataRoot, err := bot.EnsureAPIChatData(a.dataDir)
+		if err != nil {
+			return nil, err
+		}
+		apiEngine, err := bot.LoadAPIChat(dataRoot, messageSettings)
+		if err != nil {
+			return nil, fmt.Errorf("API Chat: %w (Message -> API Chat -> fill base URL, model and API key)", err)
+		}
+		for _, w := range apiEngine.Warns {
+			a.log("warn", "API Chat: "+w)
+		}
+		evaChatConfig = &bot.EVAChatConfig{DataRoot: dataRoot, API: apiEngine}
+		a.log("info", fmt.Sprintf("%s | files: %s", apiEngine.Describe(), dataRoot))
+	}
 
 	profiles, err := workerplan.DiscoverProfileWorkers(a.dataDir, browserSettings.Profile)
 	if err != nil {
@@ -801,7 +859,7 @@ func (a *App) buildBotConfigs() ([]bot.Config, error) {
 		)
 		cfg.LoginInfoPath = assignment.LoginInfoPath
 		cfg.ChatMode = messageSettings.EffectiveChatMode()
-		if cfg.ChatMode == model.ChatModeEVAChat {
+		if cfg.ChatMode == model.ChatModeEVAChat || cfg.ChatMode == model.ChatModeAPIChat {
 			cfg.EVAChat = evaChatConfig
 			// EVAChat has its own persisted stage state. Keep MessageSequence
 			// empty so sequence code cannot accidentally drive this mode.

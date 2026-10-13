@@ -38,6 +38,17 @@ module (no deps, never imported by the bot).
 | `logwall/server.go` (+test), `logwall/assets/wall.html` | Live Wall: binds 127.0.0.1 only, 12 tiles, SSE log, backgrounds from `data\logwall\*`, keys T/L/P/B/F/C, `?theme=&layout=`, phone layout ≤640px. |
 | `api/`, `browser/`, `proxy/`, `store/`, `uistore/`, `workerplan/`, `license/`, `runtimeassets/` | original project — do not touch (license is windows-only; browser rod test needs Chromium → both fail in sandbox, ignore). |
 
+### API Chat mode (P5-R, 2026-10-14)
+- `internal/bot/apichat/brain.go` — apitest director/persona/decks port (keep
+  in sync with `apitest/main.go` when apitest logic changes).
+- `internal/bot/apichat/engine.go` — `Engine` API used by the bot; `assets/`
+  embedded seeds for `data\api_chat\`.
+- `internal/bot/api_chat.go` — bridge into the EVAChat plumbing in `logic.go`
+  (username deck, counters, error log).
+- Settings: `internal/model/ui.go` (`api_*` keys); UI: `index.html`
+  `section-apichat-mode`, `app.js` `apiChatTestSettings()`/`evaAISettings()`.
+- `memory/scripts/offline_typecheck.sh` — sandbox whole-project compile check.
+
 ## `apitest/` (AI funnel lab, own module)
 
 | File | What |

@@ -21,6 +21,7 @@ import (
 	"strings"
 	"unicode"
 
+	"chitchatbot/internal/bot/apichat"
 	"chitchatbot/internal/model"
 )
 
@@ -171,6 +172,10 @@ type EVAChatConfig struct {
 	Engine   *EVAChatEngine
 	// AI is the optional compose layer (eva_ai.go); nil = TXT lines only.
 	AI *EVAAIConfig
+	// API is the API Chat brain (api_chat.go / internal/bot/apichat). When
+	// set (ChatModeAPIChat) it replaces the TXT engine for flow and text;
+	// the plumbing in logic.go is shared.
+	API *apichat.Engine
 }
 
 // EVAReplyResult describes one decision from the stateful EVAChat engine.
@@ -1140,6 +1145,9 @@ func evaLastLine(message string) string {
 // ---------------------------------------------------------------------------
 
 func evaChatEnabled(cfg Config) bool {
+	if apiChatEnabled(cfg) {
+		return true
+	}
 	return cfg.ChatMode == model.ChatModeEVAChat && cfg.EVAChat != nil && cfg.EVAChat.Engine != nil
 }
 
@@ -1155,6 +1163,9 @@ func evaChatSession(accountState *model.AccountState, userID string) model.EVACh
 }
 
 func evaChatStart(cfg Config, accountState *model.AccountState, userID string, rng *rand.Rand) EVAReplyResult {
+	if apiChatEnabled(cfg) {
+		return apiChatStart(cfg, accountState, userID, rng)
+	}
 	session := evaChatSession(accountState, userID)
 	result := cfg.EVAChat.Engine.Start(&session, rng)
 	result = evaChatCompose(cfg, &session, "", result, rng)
@@ -1163,6 +1174,9 @@ func evaChatStart(cfg Config, accountState *model.AccountState, userID string, r
 }
 
 func evaChatReply(cfg Config, accountState *model.AccountState, userID, incoming string, rng *rand.Rand) EVAReplyResult {
+	if apiChatEnabled(cfg) {
+		return apiChatReply(cfg, accountState, userID, incoming, rng)
+	}
 	session := evaChatSession(accountState, userID)
 	opts := EVAReplyOptions{HasUsernames: len(cfg.MessageUsernames) > 0}
 	result := cfg.EVAChat.Engine.ReplyWithOptions(incoming, &session, rng, opts)

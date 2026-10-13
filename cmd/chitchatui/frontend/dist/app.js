@@ -114,24 +114,70 @@ function renderHomeStats(stats) {
   document.getElementById("stat-resting-accounts").textContent = String(home.resting_accounts || 0);
 }
 
+const MODE_IDS = { single: "single", folder: "folder", evachat: "eva_chat_flow", apichat: "api_chat" };
+
+function modeFromId(m) {
+  return MODE_IDS[m] || m;
+}
+
+function intField(id, fallback) {
+  const el = document.getElementById(id);
+  const n = el ? parseInt(el.value, 10) : NaN;
+  return Number.isFinite(n) ? n : fallback;
+}
+
+// The API url / key / model fields are shared between EVAChat (hybrid) and
+// API Chat: whichever panel is visible is the source of truth on save.
 function evaAISettings() {
+  const selectedMode = document.querySelector('input[name="chat-mode"]:checked')?.value || "single";
+  const api = selectedMode === "api_chat";
   return {
     ai_enabled: document.getElementById("evachat-ai-enabled").checked,
-    ai_base_url: document.getElementById("evachat-ai-base-url").value.trim(),
-    ai_model: document.getElementById("evachat-ai-model").value.trim(),
-    ai_api_key: document.getElementById("evachat-ai-api-key").value.trim(),
+    ai_base_url: document.getElementById(api ? "apichat-base-url" : "evachat-ai-base-url").value.trim(),
+    ai_model: document.getElementById(api ? "apichat-model" : "evachat-ai-model").value.trim(),
+    ai_api_key: document.getElementById(api ? "apichat-api-key" : "evachat-ai-api-key").value.trim(),
+    api_settings_saved: true,
+    api_share_hot: intField("apichat-share-hot", 4),
+    api_share_warm: intField("apichat-share-warm", 6),
+    api_share_cold: intField("apichat-share-cold", 8),
+    api_no_share_percent: intField("apichat-no-share-percent", 30),
+    api_hint_percent: intField("apichat-hint-percent", 60),
+    api_no_share_min_replies: intField("apichat-no-share-min", 3),
+    api_no_share_max_replies: intField("apichat-no-share-max", 4),
+    api_no_share_strict: document.getElementById("apichat-no-share-strict").checked,
+  };
+}
+
+function apiChatTestSettings() {
+  return {
+    chat_mode: "api_chat",
+    sequence: document.getElementById("message-sequence").value,
+    usernames: document.getElementById("message-usernames").value,
+    ai_enabled: false,
+    ai_base_url: document.getElementById("apichat-base-url").value.trim(),
+    ai_model: document.getElementById("apichat-model").value.trim(),
+    ai_api_key: document.getElementById("apichat-api-key").value.trim(),
+    api_settings_saved: true,
+    api_share_hot: intField("apichat-share-hot", 4),
+    api_share_warm: intField("apichat-share-warm", 6),
+    api_share_cold: intField("apichat-share-cold", 8),
+    api_no_share_percent: intField("apichat-no-share-percent", 30),
+    api_hint_percent: intField("apichat-hint-percent", 60),
+    api_no_share_min_replies: intField("apichat-no-share-min", 3),
+    api_no_share_max_replies: intField("apichat-no-share-max", 4),
+    api_no_share_strict: document.getElementById("apichat-no-share-strict").checked,
   };
 }
 
 function setChatMode(mode) {
-  const validMode = (mode === "folder" || mode === "eva_chat_flow") ? mode : "single";
-  ["single", "folder", "evachat"].forEach((m) => {
+  const validMode = (mode === "folder" || mode === "eva_chat_flow" || mode === "api_chat") ? mode : "single";
+  ["single", "folder", "evachat", "apichat"].forEach((m) => {
     const radio = document.getElementById(`chat-mode-${m}`);
     const label = document.getElementById(`mode-option-${m}`);
     const section = document.getElementById(`section-${m}-mode`);
-    if (radio) radio.checked = ((m === "evachat" ? "eva_chat_flow" : m) === validMode);
-    if (label) label.classList.toggle("active", (m === "evachat" ? "eva_chat_flow" : m) === validMode);
-    if (section) section.style.display = ((m === "evachat" ? "eva_chat_flow" : m) === validMode) ? "block" : "none";
+    if (radio) radio.checked = (modeFromId(m) === validMode);
+    if (label) label.classList.toggle("active", modeFromId(m) === validMode);
+    if (section) section.style.display = (modeFromId(m) === validMode) ? "block" : "none";
   });
   const useLoaded = document.getElementById("use-loaded-sequences");
   if (useLoaded) useLoaded.checked = (validMode === "folder");
@@ -153,6 +199,19 @@ function fillForms(snapshot) {
   document.getElementById("evachat-ai-base-url").value = snapshot.message.ai_base_url || "";
   document.getElementById("evachat-ai-model").value = snapshot.message.ai_model || "";
   document.getElementById("evachat-ai-api-key").value = snapshot.message.ai_api_key || "";
+  document.getElementById("apichat-base-url").value = snapshot.message.ai_base_url || "";
+  document.getElementById("apichat-model").value = snapshot.message.ai_model || "";
+  document.getElementById("apichat-api-key").value = snapshot.message.ai_api_key || "";
+  const saved = !!snapshot.message.api_settings_saved;
+  const pick = (v, d) => (saved && Number.isFinite(v) && v > 0 ? v : d);
+  document.getElementById("apichat-share-hot").value = pick(snapshot.message.api_share_hot, 4);
+  document.getElementById("apichat-share-warm").value = pick(snapshot.message.api_share_warm, 6);
+  document.getElementById("apichat-share-cold").value = pick(snapshot.message.api_share_cold, 8);
+  document.getElementById("apichat-no-share-percent").value = saved && Number.isFinite(snapshot.message.api_no_share_percent) ? snapshot.message.api_no_share_percent : 30;
+  document.getElementById("apichat-hint-percent").value = saved && Number.isFinite(snapshot.message.api_hint_percent) ? snapshot.message.api_hint_percent : 60;
+  document.getElementById("apichat-no-share-min").value = pick(snapshot.message.api_no_share_min_replies, 3);
+  document.getElementById("apichat-no-share-max").value = pick(snapshot.message.api_no_share_max_replies, 4);
+  document.getElementById("apichat-no-share-strict").checked = !!snapshot.message.api_no_share_strict;
   document.getElementById("proxy-enabled").checked = !!snapshot.proxy.enabled;
   document.getElementById("proxy-entries").value = snapshot.proxy.entries || "";
   document.getElementById("poll-min").value = snapshot.general.poll_min_seconds;
@@ -265,12 +324,33 @@ function bindForms() {
     });
   });
 
-  ["single", "folder", "evachat"].forEach((mode) => {
+  ["single", "folder", "evachat", "apichat"].forEach((mode) => {
     const label = document.getElementById(`mode-option-${mode}`);
     if (label) {
       label.addEventListener("click", () => {
-        setChatMode(mode === "evachat" ? "eva_chat_flow" : mode);
+        setChatMode(modeFromId(mode));
       });
+    }
+  });
+
+  document.getElementById("apichat-test-btn").addEventListener("click", async () => {
+    const status = document.getElementById("apichat-status");
+    status.textContent = "Testing API...";
+    try {
+      const result = await invoke("TestAPIChat", apiChatTestSettings());
+      status.textContent = result || "API OK";
+    } catch (error) {
+      status.textContent = "API test failed: " + (error.message || String(error));
+    }
+  });
+
+  document.getElementById("open-apichat-folder-btn").addEventListener("click", async () => {
+    const status = document.getElementById("apichat-status");
+    try {
+      const result = await invoke("OpenAPIChatDataFolder");
+      if (result) status.textContent = result;
+    } catch (error) {
+      status.textContent = error.message || String(error);
     }
   });
 
