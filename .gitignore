@@ -15,3 +15,6 @@ release/
 *.zip
 .DS_Store
 Thumbs.db
+
+# published download zips (small, rebuilt from HEAD on request)
+!downloads/*.zip
