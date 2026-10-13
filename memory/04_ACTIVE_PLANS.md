@@ -15,7 +15,39 @@ contention at 700 accounts) → LATER.
 `be22ddc` snap_share deck, `598f740` share mix (no-share 30%, hint 60/40,
 username deck). Awaiting the owner's real-API run for a debug round.
 
-## P5 — Port the share-mix to the MAIN bot — PROPOSED (plan delivered, awaiting 4 answers)
+## P5-R — API-only chat brain in the MAIN bot — PROPOSED (supersedes P5; awaiting "go")
+
+Owner decision 2026-10-14: in the main bot he will chat ONLY through the API.
+So the apitest brain becomes the main bot's engine when `ai_enabled` is on:
+1. New package `internal/bot/apichat/` = port of `apitest/main.go` logic:
+   director (tiers, moods, roll no-share/hint/direct, share timing, memory of
+   stranger facts, retry/sanitise/polish), persona session (f 20–25, lore),
+   decks (`snap_share.txt`, `snap_hint.txt`, usernames). Pure logic + one
+   OpenAI-compatible client (reuse `eva_ai.go` http/sanitiser pieces).
+2. Wiring in `internal/bot/logic.go` at the 5 EVA call sites
+   (`evaChatStart` ×3, `evaChatReply` ×2): if API chat is on → apichat engine
+   decides flow AND text; TXT engine untouched and still used when API is off.
+   Per-user state inside `EVAChatSession` (new `API` sub-struct: history,
+   director fields, snapUser, shareType, bailAt, hinted…) → `bot_state.json`.
+3. Data files in `data\eva_chat\` (seeded from embedded assets, owner's copies
+   win): `persona.txt` (apitest version), `snap_share.txt`, `snap_hint.txt`.
+   Usernames = dashboard Usernames list → per-account shuffled deck.
+4. Settings (dashboard, same pattern as pacing): existing `ai_*` + `share_hot/
+   warm/cold` (4/6/8), `no_share_percent` 30, `hint_percent` 60,
+   `no_share_min/max_replies` 3/4, `no_share_strict` 0.
+5. Failure policy: API error/timeout → one retry → tiny built-in fallback
+   lines (never silent) → if two failures in a chat, polite close. Log `[api]`.
+   Pacing's humanReplyDelay applies; two-message share styles go as two sends.
+6. Caps (if owner keeps them): per-handle daily cap 30 (shared registry),
+   per-account 12 shares/hour → extra chats become no-share.
+7. Counters → Home + Live Wall: share_direct, share_hint, hint_bite,
+   no_share_closed, user_asked_first, api_errors.
+Tests: port apitest tests + mock-server test for the client. Not touched:
+TXT engine behaviour, legacy modes, pacing, proxy, transport.
+Dropped from old P5: Phase B pool cleanup (TXT pools irrelevant when API on;
+only fallback lines matter).
+
+## (old) P5 — Port the share-mix into the TXT engine — SUPERSEDED by P5-R
 
 Why: live accounts run the main bot, which redirects in ~100% of chats and
 ships risky share lines. apitest is only the lab.

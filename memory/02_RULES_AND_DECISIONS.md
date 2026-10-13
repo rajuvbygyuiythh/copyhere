@@ -60,6 +60,12 @@
   Never use obfuscation (`s n a p`, `a.dd`, zero-width chars) — those are
   evasion signatures.
 
+### Main bot chat = API only (decided 2026-10-14)
+- Owner: "main bot-e ami just API diye chat korbo" → the apitest brain
+  (director + persona + decks + share mix) becomes the main bot's engine when
+  the API is configured; the TXT engine remains only as the no-API default /
+  fallback. Do not spend effort on TXT pool content for the API path.
+
 ### Pacing / scaling (main bot, shipped)
 - Bot-first 30% / user-first 70%; if the user stays silent → skip, no late
   opener. Shifts 25–40 min active / 10–25 rest (ChitChat limit hits after

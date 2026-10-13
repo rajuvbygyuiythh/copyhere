@@ -46,3 +46,6 @@ Format: date · commit(s) · what · why/notes. Older history condensed.
   ~100% redirect rate in the main bot. Awaiting 4 answers.
 - Memory folder `memory/` created + `AGENTS.md` §0 resume protocol (owner
   asked for real-time memory so nothing needs re-explaining).
+- Owner clarified: main bot will chat ONLY via API → P5 reframed as P5-R
+  (apitest brain as main-bot engine behind `ai_enabled`; TXT = fallback).
+  Plan written, no code. Memory updated.

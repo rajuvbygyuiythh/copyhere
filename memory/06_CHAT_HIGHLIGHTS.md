@@ -46,3 +46,7 @@ Earlier turns are summarised; from 2026-10-14 on, one entry per turn.
    (this folder: resume brief, project map, rules & decisions, session log,
    active plans, env recipes, chat highlights) + `AGENTS.md` §0 protocol;
    committed and pushed.
+7. Owner asked the 4 P5 questions to be re-explained sorted → done.
+8. Owner: "ami main bot-e just API diye chat korbo, so tumi just API chat er
+   logic rules setup niye bhabo, baki kichu bhabte hobe na" → P5 replaced by
+   P5-R (API-only brain plan, 7 steps); asked for "go" + keep caps?

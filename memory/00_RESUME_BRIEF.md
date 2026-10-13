@@ -29,11 +29,13 @@ API and pastes output; agent fixes bugs from that output.
 
 ## Open decisions waiting on the owner (ask these first)
 
-- **P5 main-bot share-mix**: approve Phase A+B as first PR? per-handle daily
-  cap (proposed 30) and per-account share cap/hour (proposed 12)? replace his
-  local `data\eva_chat\output\share_snap.txt` with the clean 26-style list
-  (merge his own lines if any)? use apitest `snap_hint.txt` verbatim as the
-  main-bot hint pool?
+- **P5 REVISED (2026-10-14)**: owner said *"main bot-e ami just API diye chat
+  korbo — only API chat logic/rules, nothing else"*. So P5 is no longer
+  "port share-mix into the TXT engine"; it is **"make the apitest brain
+  (director + persona + decks + share mix) the main bot's chat engine when
+  API is on; TXT engine only as fallback"**. Plan P5-R written in
+  `04_ACTIVE_PLANS.md`; waiting for the owner's "go" (+ whether to keep the
+  per-handle/per-account caps, proposed 30/day and 12/hour).
 - Older, still unanswered: "chat list ato long → short" — (a) compact console
   status line in apitest, or (b) share snap earlier (HOT 4/WARM 6/COLD 8)?
 - Owner has NOT yet pasted a real-API run of the new share-mix build
@@ -41,13 +43,11 @@ API and pastes output; agent fixes bugs from that output.
 
 ## Exact next steps (in order)
 
-1. Wait for the P5 answers → implement Phase A (`eva_chat.go` share types,
-   `model.go` session fields, username deck in `message_sequence.go`,
-   settings keys in `app.go` + frontend) + Phase B (clean pools, add
-   `snap_hint.txt` asset) in one commit; tests + Windows build; push; rebuild
-   `downloads/*.zip`; update this memory.
-2. Then Phase C (per-handle daily cap in shared registry, per-account share
-   cap/hour) and Phase D (counters → Home tiles + Live Wall + `[share]` log).
+1. On "go": implement P5-R step 1–2 (new package `internal/bot/apichat`
+   ported from `apitest/main.go` + wiring in `logic.go` behind the existing
+   `ai_enabled` switch), then 3–5 (data files, settings, fallback policy),
+   tests, Windows build, push, zips, memory.
+2. Then caps + counters (P5-R step 6–7).
 3. Later (Step 4 leftovers): silent-user follow-up, AI lead-in on the share
    turn in the main bot (as apitest does), reply typing delays review.
 4. Update the Drive handoff docs when a milestone lands (ids in
