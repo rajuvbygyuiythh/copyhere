@@ -52,20 +52,59 @@ line and is told it must NOT write any username — the model never holds it.
 Every note ends with: *never leave their question unanswered, never ask two
 questions, never write a username or @.*
 
-## 4. Moods (act rotation)
+## 4. Moods (act rotation — context first, rotation as fallback)
 
-friendly · playful · lonely · flirty · fun/joke · curious · teasing — shuffled
-per conversation, next mood every 2 replies. HOT tier only rotates
-flirty → teasing → playful. The mood goes into the director note with a one-line
-hint of how it sounds.
+| what the stranger just did | mood used |
+|---|---|
+| horny | teasing ↔ flirty (alternating) |
+| flirty / asks for a pic | flirty |
+| laughs (lol, haha, 😂) | fun/joke |
+| says bored / alone / cant sleep | lonely (relate: home alone too) |
+| 2+ one-word answers in a row | lonely → teasing (hook) |
+| tells something about themselves | curious |
+| nothing special | shuffled rotation friendly · playful · lonely · flirty · fun/joke · curious · teasing, next mood every 2 replies (HOT: flirty → teasing → playful) |
 
-## 5. Double-line SMS (when it increases engagement)
+The mood goes into the director note with a one-line hint of how it sounds.
 
-* after a horny or flirty message: reaction line + question line
-* the ask turn: answer line + "u got snap?" line
-* the share turn: lead-in line + username line
-* otherwise roughly every 3rd reply (reaction + question)
-* never two double replies in a row
+## 5. Double-line SMS (only when it buys engagement)
+
+| situation | lines | why |
+|---|---|---|
+| after a horny / flirty message | 2 | reaction + hook |
+| 2+ one-word answers in a row | 2 | tease + effortless question = restart |
+| they wrote a long message about themselves (> 40 chars) | 2 | they invested → reward |
+| the ask turn | 2 | answer + "u got snap?" |
+| the share turn | 2 | lead-in + username |
+| they wrote one word ("k", "lol") | 1 | mirror their energy |
+| pic request | 1 | short "not here lol" |
+| otherwise | every 3rd reply | rhythm |
+
+Never two double replies in a row, never on reply 1.
+
+## 5b. Special situations the director handles
+
+| stranger | bot |
+|---|---|
+| "r u a bot / real?" | laugh it off in 3–6 words, flip it back with one question |
+| "send pic" | "not on this app lol, only on snap" — no snap ask yet (+2 interest); after the ask it counts as a yes → share |
+| "idk / maybe / why" after the ask | one reassure line (easier to talk there) → share on the next reply anyway |
+| tier jumps late (WARM at reply 6) | ask now, share next reply; HOT shares right away |
+| one-word streak | 4 rotating hooks: tease for being quiet / tiny thing about my night / either-or question / "ur boring me a lil" |
+| after the share: "whats ur snap again" | username line sent again |
+| after the share: "added" | "ok see u there", END |
+
+## 5c. Reply quality check (one retry)
+
+After the model answers, the tool checks the lines and asks the model ONCE
+more with the reason when:
+
+* the stranger asked a question and the reply only asks back (pending answer)
+* the reply repeats an earlier bot line
+* the reply contains `@` / a link / ai-talk
+
+Printed as `RETRY: <reason>` with the first draft, so you can see how often the
+model needs it. The status line shows the plan reason (`opener`, `horny`,
+`ask snap`, `cold streak -> hook`, `share turn` …) for every reply.
 
 ## 6. Persona / tone
 

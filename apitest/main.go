@@ -91,6 +91,14 @@ var (
 	yesRe       = regexp.MustCompile(`(?i)\b(yes+|yea+h*|yep+|yeop|ye|ya|sure|ofc|ok+|okay|k|yup|i do|got it|send|drop|gimme|add me|bet|fr|why not|lets go|let's go)\b`)
 	ageRe       = []*regexp.Regexp{regexp.MustCompile(`(?i)\b([mf])[\s\-_. ]{0,2}(\d{1,2})\b`), regexp.MustCompile(`(?i)\b(\d{1,2})[\s\-_. ]{0,2}([mf])\b`), regexp.MustCompile(`(?i)\bi'?m (\d{2})\b`), regexp.MustCompile(`(?i)\b(\d{2}) ?(yo|years? old|yrs)\b`)}
 	byeRe       = regexp.MustCompile(`(?i)\b(bye|gtg|g2g|brb|ttyl|cya|gotta go|leaving|later)\b`)
+	questionRe  = regexp.MustCompile(`(?i)\b(wyd|hbu|wbu|how|what|where|why|when|who|r u|are u|do u|u got|got any|asl|age)\b`)
+	botQRe      = regexp.MustCompile(`(?i)(r u (a )?(bot|real|fake|ai|human)|are (u|you) (a )?(bot|real|fake|ai|human)|\bbot\b|\bfake\b|\bscam|\bai\b|\breal\?)`)
+	picAskRe    = regexp.MustCompile(`(?i)\b(send|show|got|have|any|ur|your)\b.*\b(pics?|photo|selfie|face)\b|\b(pics?|photo|selfie)\?`)
+	laughRe     = regexp.MustCompile(`(?i)\b(lol|lmao|haha+|hehe|rofl|😂|💀)`)
+	lonelyRe    = regexp.MustCompile(`(?i)\b(bored|boring|alone|lonely|cant sleep|can't sleep|nothing much|nm|nothin|chilling|chillin)\b`)
+	lowEffortRe = regexp.MustCompile(`(?i)^(k|kk|ok|okay|oh|ohh|lol|lmao|haha+|hmm+|cool|nice|yea+h*|ya|yep|nah|idk|same|true|fr|wow|good|fine|nothing|nm|u\??|wbu\??|hbu\??|and\??|so\??|\W*)$`)
+	hesitantRe  = regexp.MustCompile(`(?i)\b(idk|maybe|why|what for|hmm+|depends|not sure|later|dunno|we'?ll see|for what)\b`)
+	addedRe     = regexp.MustCompile(`(?i)\b(added|sent (u|you)? ?(a )?(req|request)|just added|adding|requested|follow(ed)?)\b`)
 )
 
 var allMoods = []string{"friendly", "playful", "lonely", "flirty", "fun/joke", "curious", "teasing"}
@@ -124,20 +132,30 @@ type director struct {
 	askedSnap  bool
 	askedTurn  int
 	nudges     int
+	hesitated  bool
 	shared     bool
 	sharedTurn int
 	ended      bool
 	endReason  string
 	moods      []string
-	moodIdx    int
+	lastMood   string
 	lastDouble int
+	coldStreak int
 	// per-message signals
 	userAskedSnap bool
 	userRefused   bool
+	userHesitant  bool
 	userQuestion  bool
 	userHorny     bool
 	userFlirty    bool
 	userBye       bool
+	userBotQ      bool
+	userPicAsk    bool
+	userLaugh     bool
+	userLonely    bool
+	userLowEffort bool
+	userShared    bool // told something about themselves
+	userAdded     bool // after the share: "added u"
 }
 
 type plan struct {
@@ -147,6 +165,7 @@ type plan struct {
 	ShareNow    bool // append the username line after the model's lead-in
 	EndAfter    bool // conversation ends after this reply
 	Fixed       string
+	Why         string // short reason shown in the status line
 }
 
 func newDirector(rng *rand.Rand) *director {
@@ -157,13 +176,28 @@ func newDirector(rng *rand.Rand) *director {
 
 // observe scores one stranger message and updates the funnel state.
 func (d *director) observe(text string) {
-	low := strings.ToLower(text)
+	low := strings.ToLower(strings.TrimSpace(text))
+	words := len(strings.Fields(low))
 	d.userAskedSnap = snapAskRe.MatchString(low)
-	d.userQuestion = strings.Contains(low, "?") || regexp.MustCompile(`(?i)\b(wyd|hbu|wbu|how|what|where|why|when|who|r u|are u|do u|u got|got any)\b`).MatchString(low)
+	d.userQuestion = strings.Contains(low, "?") || questionRe.MatchString(low)
 	d.userHorny = hornyRe.MatchString(low)
 	d.userFlirty = flirtyRe.MatchString(low)
 	d.userBye = byeRe.MatchString(low)
+	d.userBotQ = botQRe.MatchString(low)
+	d.userPicAsk = picAskRe.MatchString(low)
+	d.userLaugh = laughRe.MatchString(low)
+	d.userLonely = lonelyRe.MatchString(low)
+	d.userAdded = d.shared && addedRe.MatchString(low)
+	_, _, hasAsl := genderAge(low)
+	d.userLowEffort = !hasAsl && !d.userAskedSnap && (words <= 2 && lowEffortRe.MatchString(low) || len([]rune(low)) <= 3)
+	d.userShared = !d.userQuestion && !d.userLowEffort && words >= 4
 	d.userRefused = d.askedSnap && !d.shared && refuseRe.MatchString(low) && !yesRe.MatchString(low)
+	d.userHesitant = d.askedSnap && !d.shared && !d.userRefused && hesitantRe.MatchString(low) && !yesRe.MatchString(low)
+	if d.userLowEffort {
+		d.coldStreak++
+	} else {
+		d.coldStreak = 0
+	}
 
 	if g, a, ok := genderAge(low); ok {
 		if d.userAge == 0 {
@@ -177,7 +211,7 @@ func (d *director) observe(text string) {
 	case d.userHorny:
 		d.score += 3
 		d.hornyHits++
-	case d.userFlirty:
+	case d.userFlirty || d.userPicAsk:
 		d.score += 2
 		d.flirtyHits++
 	}
@@ -210,61 +244,111 @@ func (d *director) shareTurn(cfg config) int {
 	return cfg.ShareCold
 }
 
+// mood: context first (react to what they are doing), rotation as fallback.
 func (d *director) mood(turn int) string {
-	if d.tier == tierHot {
-		return hotMoods[(turn/2)%len(hotMoods)]
+	var m string
+	switch {
+	case d.userHorny:
+		if d.lastMood == "teasing" {
+			m = "flirty"
+		} else {
+			m = "teasing"
+		}
+	case d.userFlirty || d.userPicAsk:
+		m = "flirty"
+	case d.userLaugh:
+		m = "fun/joke"
+	case d.userLonely:
+		m = "lonely"
+	case d.coldStreak >= 2:
+		if d.lastMood == "lonely" {
+			m = "teasing"
+		} else {
+			m = "lonely"
+		}
+	case d.userShared:
+		m = "curious"
+	case d.tier == tierHot:
+		m = hotMoods[(turn/2)%len(hotMoods)]
+	default:
+		m = d.moods[(turn/2)%len(d.moods)]
+		if m == d.lastMood && turn%2 == 1 && turn > 2 {
+			m = d.moods[(turn/2+1)%len(d.moods)]
+		}
 	}
-	return d.moods[(turn/2)%len(d.moods)]
+	d.lastMood = m
+	return m
 }
 
 // plan decides what bot reply number `turn` must do.
 func (d *director) plan(cfg config, turn int, userText string) plan {
 	p := plan{Mood: d.mood(turn)}
 	base := "reply to exactly what they just said"
-	if d.userQuestion {
+	switch {
+	case d.userQuestion:
 		base = "they asked you something: answer it directly first, in your own words"
+	case d.userShared:
+		base = "pick up the specific detail they just shared and react to it"
 	}
 
 	// hard gates ---------------------------------------------------------
 	if d.underage {
 		d.ended, d.endReason = true, "underage"
-		return plan{Fixed: "oh ur too young for me lol. bye", EndAfter: true}
+		return plan{Fixed: "oh ur too young for me lol. bye", EndAfter: true, Why: "underage"}
 	}
 	if d.userBye && !d.shared {
 		d.ended, d.endReason = true, "user left"
-		return plan{Mood: p.Mood, Instruction: "they are leaving: say bye casually, one short line, no questions", EndAfter: true}
+		return plan{Mood: p.Mood, Instruction: "they are leaving: say bye casually, one short line, no questions", EndAfter: true, Why: "bye"}
 	}
 
 	// after the share -----------------------------------------------------
 	if d.shared {
-		if turn-d.sharedTurn >= 2 || d.userBye {
+		switch {
+		case d.userAskedSnap:
+			// "whats ur snap again?" -> resend the username line
+			d.sharedTurn = turn
+			return plan{Mood: p.Mood, Instruction: "they ask for the snap again: say 'its' or 'here' style, 2-3 words, NO username.", ShareNow: true, Why: "resend snap"}
+		case d.userAdded:
+			d.ended, d.endReason = true, "added on snap"
+			return plan{Mood: "flirty", Instruction: "they added you on snap: say u will accept it and talk there. one short line, no question.", EndAfter: true, Why: "added"}
+		case turn-d.sharedTurn >= 2 || d.userBye:
 			d.ended, d.endReason = true, "done after share"
-			return plan{Mood: p.Mood, Instruction: base + ", then say ttyl and that you'll be on snap. one short line, no question.", EndAfter: true}
+			return plan{Mood: p.Mood, Instruction: base + ", then say ttyl and that you'll be on snap. one short line, no question.", EndAfter: true, Why: "close"}
 		}
-		return plan{Mood: p.Mood, Instruction: base + ". remind them casually to add you on snap (do NOT write the username, it was already sent). one short line."}
+		return plan{Mood: p.Mood, Instruction: base + ". remind them casually to add you on snap (do NOT write the username, it was already sent). one short line.", Why: "remind"}
 	}
 
-	// user asks for the snap / says yes after the ask -> share now ---------
-	if d.userAskedSnap || (d.askedSnap && yesRe.MatchString(strings.ToLower(userText))) {
-		return d.sharePlan(turn, p.Mood, "they want your snap: say something short and playful like 'ok fine' or 'took u long enough'. one line, NO username, no question.")
+	// user asks for the snap / pic / says yes after the ask -> share now ---
+	if d.userAskedSnap || (d.askedSnap && (yesRe.MatchString(strings.ToLower(userText)) || d.userPicAsk)) {
+		return d.sharePlan(turn, p.Mood, "they want your snap: say something short and playful like 'ok fine' or 'took u long enough'. one line, NO username, no question.", "user wants it")
+	}
+	if d.hesitated && !d.userRefused {
+		return d.sharePlan(turn, p.Mood, base+". then just drop it casually like 'anyway here' / 'just add me lol'. one short line, NO username, no question.", "share after reassure")
+	}
+	// hesitation after the ask ("idk", "why") -> reassure once, share next turn
+	if d.userHesitant && !d.hesitated {
+		d.hesitated = true
+		return plan{Mood: "playful", Instruction: base + ". they are unsure about snap: reassure casually (it's just easier to talk there, u barely open this app). one short line, NO username, no question.", Why: "hesitant -> reassure"}
 	}
 	// refusal after the ask -> one nudge, then let it go ------------------
 	if d.userRefused {
 		if d.nudges == 0 {
 			d.nudges++
-			return plan{Mood: "teasing", Instruction: "they said no to snap: tease them lightly to add you anyway, say u are barely on this app. one short line, NO username.", Double: false}
+			return plan{Mood: "teasing", Instruction: "they said no to snap: tease them lightly to add you anyway, say u are barely on this app. one short line, NO username.", Why: "refused -> nudge"}
 		}
 		d.ended, d.endReason = true, "refused twice"
-		return plan{Mood: "friendly", Instruction: "they really don't want snap: no worries, say bye nicely. one short line.", EndAfter: true}
+		return plan{Mood: "friendly", Instruction: "they really don't want snap: no worries, say bye nicely. one short line.", EndAfter: true, Why: "refused twice"}
 	}
 
 	target := d.shareTurn(cfg)
 	switch {
-	case turn >= target:
+	case turn >= target && (d.askedSnap || d.tier == tierHot):
 		// share turn: the model writes the lead-in, we append the username
-		return d.sharePlan(turn, p.Mood, base+". then say u are moving to snap because this app is boring / u barely check it. one short line, NO username, no question.")
-	case turn == target-1 && !d.askedSnap:
+		return d.sharePlan(turn, p.Mood, base+". then say u are moving to snap because this app is boring / u barely check it. one short line, NO username, no question.", "share turn")
+	case turn >= target-1 && !d.askedSnap:
+		// (tier may have jumped late: ask now, share next reply)
 		d.askedSnap, d.askedTurn = true, turn
+		p.Why = "ask snap"
 		if d.lastDouble == turn-1 {
 			p.Instruction = base + " and in the same line ask if they have snapchat ('u got snap?' style). one line."
 			return p
@@ -277,19 +361,59 @@ func (d *director) plan(cfg config, turn int, userText string) plan {
 
 	// middle chat, step by step -------------------------------------------
 	switch {
+	case d.userBotQ:
+		p.Why = "bot question"
+		p.Instruction = base + ". they ask if u are real / a bot: laugh it off in 3-6 words (like 'lol im real') and flip it back on them with one short question. never over-explain."
+	case d.userPicAsk:
+		p.Why = "pic request"
+		p.Instruction = base + ". they want a pic: say not on this app lol, u only send pics on snap. don't ask for snap yet, no question."
 	case d.userHorny:
+		p.Why = "horny"
 		p.Instruction = base + ". they are being horny: tease back, playful and confident, suggestive but NOT explicit, don't shut them down. hint it would be more fun on snap, but do NOT ask for snap yet."
 	case d.userFlirty:
+		p.Why = "flirty"
 		p.Instruction = base + ". they are flirting: flirt back, give a small compliment, keep them chasing."
 	case turn == 1:
+		p.Why = "opener"
 		p.Instruction = base + ". greet back casually and ask one quick thing about them (age / where from / wyd)."
 	case turn == 2 && d.userAge == 0:
+		p.Why = "asl"
 		p.Instruction = base + ". if they didn't say their age/gender yet, ask asl style (like 'f 21, u?') with your persona age."
+	case d.coldStreak >= 2:
+		p.Why = "cold streak -> hook"
+		hooks := []string{
+			"they are giving one-word answers: tease them for being so quiet (like 'ur a man of many words huh'), then ask something easy.",
+			"they are giving one-word answers: share one tiny random thing about your night (snack, show, cant sleep) and ask if they're the same.",
+			"they are giving one-word answers: ask a fun either/or question (like 'netflix or going out') so answering is effortless.",
+			"they are giving one-word answers: call it out playfully ('ok ur boring me a lil') and ask what would actually make them talk.",
+		}
+		p.Instruction = base + ". " + hooks[(d.coldStreak-2)%len(hooks)]
+	case d.userLonely:
+		p.Why = "lonely match"
+		p.Instruction = base + ". they are bored/alone too: relate (u are home alone too), make it feel like a late night chat, ask what they usually do at night."
+	case d.userShared:
+		p.Why = "they opened up"
+		p.Instruction = base + ". show you noticed it, then ask ONE follow-up about that exact thing. mood: " + moodHints[p.Mood] + "."
 	default:
+		p.Why = "keep going"
 		p.Instruction = base + ". then keep the chat going with ONE short question that fits what they said. mood: " + moodHints[p.Mood] + "."
 	}
-	// double lines: roughly every 3rd turn, after horny/flirty lines, never twice in a row
-	if (d.userHorny || d.userFlirty || turn%3 == 0) && d.lastDouble != turn-1 && turn > 1 {
+
+	// double lines: when it buys engagement, never twice in a row, never on reply 1
+	wantDouble := false
+	switch {
+	case d.userHorny || d.userFlirty:
+		wantDouble = true // reaction line + hook line
+	case d.coldStreak >= 2:
+		wantDouble = true // tease line + easy question = restart the chat
+	case d.userShared && len([]rune(userText)) > 40:
+		wantDouble = true // they invested, reward with more
+	case d.userLowEffort:
+		wantDouble = false // mirror their energy
+	case turn%3 == 0:
+		wantDouble = true // rhythm
+	}
+	if wantDouble && d.lastDouble != turn-1 && turn > 1 && !d.userPicAsk {
 		p.Double = true
 		d.lastDouble = turn
 		p.Instruction += " write TWO lines: first the reaction/answer, second the question."
@@ -297,11 +421,11 @@ func (d *director) plan(cfg config, turn int, userText string) plan {
 	return p
 }
 
-func (d *director) sharePlan(turn int, mood, instruction string) plan {
+func (d *director) sharePlan(turn int, mood, instruction, why string) plan {
 	d.shared, d.sharedTurn = true, turn
 	d.askedSnap = true
 	d.lastDouble = turn
-	return plan{Mood: mood, Instruction: instruction, ShareNow: true}
+	return plan{Mood: mood, Instruction: instruction, ShareNow: true, Why: why}
 }
 
 func (d *director) status(cfg config, turn int) string {
@@ -311,7 +435,35 @@ func (d *director) status(cfg config, turn int) string {
 	case d.shared:
 		return fmt.Sprintf("tier=%s score=%d | snap SHARED on turn %d", d.tier, d.score, d.sharedTurn)
 	}
-	return fmt.Sprintf("tier=%s score=%d | snap at reply %d (asked=%v)", d.tier, d.score, d.shareTurn(cfg), d.askedSnap)
+	extra := ""
+	if d.coldStreak >= 2 {
+		extra = fmt.Sprintf(" cold=%d", d.coldStreak)
+	}
+	return fmt.Sprintf("tier=%s score=%d | snap at reply %d (asked=%v)%s", d.tier, d.score, d.shareTurn(cfg), d.askedSnap, extra)
+}
+
+// replyProblem checks the generated lines against the plan; non-empty = retry once.
+func replyProblem(lines []string, d *director, userText string, history []message) string {
+	allQuestions := true
+	for _, l := range lines {
+		if !strings.HasSuffix(strings.TrimSpace(l), "?") {
+			allQuestions = false
+		}
+	}
+	if d.userQuestion && allQuestions {
+		return "did not answer their question, only asked back"
+	}
+	for _, l := range lines {
+		if forbiddenRe.MatchString(l) {
+			return "wrote @ / link / ai-talk"
+		}
+		for _, m := range history {
+			if m.Role == "assistant" && strings.EqualFold(strings.TrimSpace(m.Content), strings.TrimSpace(l)) {
+				return "repeated an earlier line"
+			}
+		}
+	}
+	return ""
 }
 
 // ---------------------------------------------------------------- session ---
@@ -464,6 +616,21 @@ func chatLoop(cfg config, personaTemplate string) {
 			if warn != "" {
 				fmt.Printf("     WARN: %s\n     raw: %q\n", warn, strings.TrimSpace(reply))
 			}
+			if problem := replyProblem(lines, d, text, s.History); problem != "" {
+				fmt.Printf("     RETRY: %s -> asking the model once more\n     first try: %q\n", problem, strings.Join(lines, " / "))
+				fix := fmt.Sprintf("your previous draft was rejected: %s. rewrite it. their message was: %q. answer it first, keep the same mood and format, say something new.", problem, text)
+				msgs = append(msgs, message{Role: "system", Content: fix})
+				start2 := time.Now()
+				reply2, info2, err2 := complete(cfg, msgs)
+				took += time.Since(start2).Seconds()
+				if err2 == nil {
+					info = info2
+					lines, warn = sanitizeLines(reply2, p.Double)
+					if warn != "" {
+						fmt.Printf("     WARN: %s\n     raw: %q\n", warn, strings.TrimSpace(reply2))
+					}
+				}
+			}
 		}
 		if p.ShareNow {
 			user := cfg.SnapUsername
@@ -477,7 +644,7 @@ func chatLoop(cfg config, personaTemplate string) {
 			s.History = append(s.History, message{Role: "assistant", Content: line})
 		}
 		s.Turns++
-		fmt.Printf("     [%.1fs%s] reply %d | mood %s | %s", took, info, turn, p.Mood, d.status(cfg, turn+1))
+		fmt.Printf("     [%.1fs%s] reply %d | mood %s | %s | %s", took, info, turn, p.Mood, p.Why, d.status(cfg, turn+1))
 		if p.Double {
 			fmt.Print(" | double")
 		}
