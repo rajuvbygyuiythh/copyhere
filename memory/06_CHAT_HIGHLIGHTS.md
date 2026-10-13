@@ -60,4 +60,7 @@ Earlier turns are summarised; from 2026-10-14 on, one entry per turn.
 11. Owner: "dashboard-e spammy option dekhabo na, clean rakho; oi option gulo
     apitest folder-er config_rules.json-e rakho jeno hand-edit kora jay,
     bot + apitest same file theke control" → done (rules.go, config_rules.json).
+12. Owner: "Browser setting improve koro: browser mode option, browser
+    all-time show, real browser diye chat, websocket na; age plan + file
+    scope, safe vabe" → P8 plan delivered, awaiting go.
 

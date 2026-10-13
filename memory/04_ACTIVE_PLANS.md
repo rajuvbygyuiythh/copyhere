@@ -130,6 +130,63 @@ friend-DM opener, pacing engine.
 Open questions → see `00_RESUME_BRIEF.md`. Suggested order: A+B first PR,
 then C, then D.
 
+## P8 — Browser Mode (visible real browser does the chatting) — PLAN APPROVED? (2026-10-14, awaiting "go")
+
+Owner: Browser page gets ONE new option "Browser mode". Bot behaviour stays
+exactly as today when it is off. When on: the real browser window stays
+open/visible for the whole run and the chat happens THROUGH that browser
+(no Go websocket, no Go HTTP client) — like a real user.
+
+Findings that make this cheap and safe:
+- `internal/browser.Backend` already has `Fetch()` = `page.Eval(fetch)` run
+  INSIDE the logged-in page (cookies/TLS/UA/proxy = real browser). Today it
+  is only used for login capture; the worker then switches to
+  `internal/api.Client` (Go http) + `realtime.go` (Go websocket + uTLS).
+- `logic.go` only needs something with `Fetch(ctx, req)`; `api.Client` is
+  created fresh each loop in `run.go` (`client := api.New(...)`).
+- Without realtime events the loop already polls (`waitForNextCycle` with
+  nil channel) → browser mode works on day 1 without any websocket.
+
+Phase 1 (deliverable, 100% doable offline):
+1. `internal/model/ui.go` — `BrowserSettings.BrowserMode bool` (`browser_mode`).
+2. `internal/api/client.go` — `Executor` interface + `Client.via`;
+   `NewVia(exec)`; `Fetch` delegates when via != nil (≈20 lines, no other
+   behaviour change). Unit test with a fake executor.
+3. `internal/browser/backend.go`, `rod.go`, `chromedp.go` — small additions:
+   `Navigate(url)`, `Alive()`; Fetch unchanged. (No Chromium in sandbox →
+   only compile-checked here; owner runs it.)
+4. `internal/bot/run.go` — `Config.BrowserMode`; in `Run`: open the backend
+   once (visible unless Headless), capture/verify login (existing
+   `waitForLogin`), keep it open for the worker's life (`defer Close`),
+   `client := api.NewVia(backend)` each loop, DO NOT start
+   `startRealtimeListener` (events nil → polling), log `[browser]` lines,
+   if the page dies → recover (rod already has `recoverPage`) else stop
+   worker with a clear error. Proxy: one proxy per window from the rotator
+   at launch (a browser cannot rotate per request — say so in UI).
+5. `app.go` — pass `BrowserMode` into every worker cfg; `SaveBrowserSettings`
+   persists it; warn in log when BrowserMode && accounts > 10 (RAM).
+6. Frontend Browser page — checkbox "Browser mode — keep the real browser
+   open and chat through it (no websocket)" + 3-line help (RAM ≈300–500 MB
+   per window, proxy fixed per window, realtime = polling in phase 1).
+7. Docs (`docs/`), memory, tests, zip.
+Untouched: logic.go flow, EVAChat/API Chat engines, pacing, legacy modes,
+realtime.go (just not started in browser mode), proxy rotator design.
+
+Phase 2 (after owner tests phase 1): browser-native realtime — inject a tiny
+script that listens to the site's own socket events and relays them to Go
+via `page.Expose` → instant replies without a Go websocket. Needs the site's
+socket object name; owner runs a 1-line console snippet on his PC (sandbox
+cannot open chitchat.gg) and pastes the output.
+
+Phase 3 (optional): true DOM typing — type into the site's textbox and click
+send (native typing indicator). Needs CSS selectors from the owner (same
+snippet approach); selectors editable in `data\browser_mode\selectors.json`.
+Fallback to phase-1 fetch when a selector breaks.
+
+Risks told to the owner: one Chrome window per account (3–10 accounts
+realistic on one PC, not 50–60); window must stay logged in; if he closes
+the window the worker stops (we log it, no crash).
+
 ## P6 — Step 4 leftovers — LATER
 Silent-user follow-up; AI lead-in on the share turn in the main bot (apitest
 style, TXT handle appended); typing-delay review; registry contention

@@ -15,6 +15,12 @@ API and pastes output; agent fixes bugs from that output.
 
 ## Last thing done (most recent turn first)
 
+000000. Owner asked for a PLAN (no code yet) for "Browser mode" (visible
+        real browser does the chatting, no websocket). Plan P8 written in
+        `04_ACTIVE_PLANS.md` (phase 1 = browser-executed fetch transport via
+        `api.Client.via`, keep window open, polling; phase 2 native realtime;
+        phase 3 DOM typing). Waiting for "go".
+
 00000. Banned/flagged accounts: worker now stops itself after one `[banned]`
        log line and the account is marked dead immediately (Home / Live Wall
        "Dead / banned"). No skip-at-start: next Start tries once more (flag

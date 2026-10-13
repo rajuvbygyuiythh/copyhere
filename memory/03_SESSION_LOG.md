@@ -96,4 +96,7 @@ Format: date · commit(s) · what · why/notes. Older history condensed.
   banned_at/reason). `match()` and `sendDMMessage()` wrap 403-banned bodies;
   `Run` loop marks dead, logs one `[banned]` line, stops that worker only.
   Home tile renamed "Dead / banned". Tests `banned_test.go`.
+- Owner (Browser page screenshot): wants a "Browser mode" option — bot runs
+  through the always-visible real browser, DOM/browser based, not websocket;
+  asked for plan + file scope first, safely. Delivered P8 plan (no code).
 
