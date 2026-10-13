@@ -101,6 +101,11 @@ type realtimeEvent struct {
 	Target         model.DMTarget
 }
 
+const (
+	presenceSyncPacket   = `42["presenceSync"]`
+	presenceSyncInterval = 30 * time.Second
+)
+
 func startRealtimeListener(
 	parent context.Context,
 	cfg Config,
@@ -212,11 +217,44 @@ func connectRealtimeSocket(
 		return err
 	}
 
+	// gorilla/websocket allows one concurrent writer: pongs come from the
+	// read loop, presenceSync from a ticker goroutine.
+	var writeMu sync.Mutex
+	write := func(packet string) error {
+		writeMu.Lock()
+		defer writeMu.Unlock()
+		return conn.WriteMessage(websocket.TextMessage, []byte(packet))
+	}
+
 	releaseHash := getOrFetchReleaseHash()
 	connectPacket := fmt.Sprintf(`40{"release":%q}`, releaseHash)
-	if err := conn.WriteMessage(websocket.TextMessage, []byte(connectPacket)); err != nil {
+	if err := write(connectPacket); err != nil {
 		return err
 	}
+	// Real client: emit presenceSync right after connecting and every 30 s
+	// (the server answers with onlineFriends). A socket that never sends it
+	// does not look like the web app.
+	if err := write(presenceSyncPacket); err != nil {
+		return err
+	}
+	loopDone := make(chan struct{})
+	defer close(loopDone)
+	go func() {
+		ticker := time.NewTicker(presenceSyncInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-loopDone:
+				return
+			case <-ticker.C:
+				if err := write(presenceSyncPacket); err != nil {
+					return
+				}
+			}
+		}
+	}()
 
 	for {
 		select {
@@ -236,7 +274,7 @@ func connectRealtimeSocket(
 		packet := string(payload)
 		switch {
 		case packet == "2":
-			if err := conn.WriteMessage(websocket.TextMessage, []byte("3")); err != nil {
+			if err := write("3"); err != nil {
 				return err
 			}
 		case strings.HasPrefix(packet, "40"):

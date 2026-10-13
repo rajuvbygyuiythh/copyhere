@@ -1,5 +1,7 @@
 package browser
 
+import "fmt"
+
 const storageFunction = `() => {
   const copy = (storage) => {
     const data = {};
@@ -107,6 +109,16 @@ const stealthInitScript = `(() => {
     }
   } catch (e) {}
 })();`
+
+// stealthScript returns the init script for the given options (the constant
+// stealth part plus per-profile overrides).
+func stealthScript(options Options) string {
+	if options.HardwareConcurrency <= 0 {
+		return stealthInitScript
+	}
+	return fmt.Sprintf(`(() => { try { Object.defineProperty(navigator, "hardwareConcurrency", { get: () => %d, configurable: true }); } catch (e) {} })();
+`, options.HardwareConcurrency) + stealthInitScript
+}
 
 // inspectFunction returns what the page's JavaScript sees.
 const inspectFunction = `() => ({

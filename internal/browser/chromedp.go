@@ -110,7 +110,7 @@ func (b *ChromeDPBackend) Start(parent context.Context, options Options) error {
 	}
 	if options.Stealth {
 		actions = append(actions, chromedp.ActionFunc(func(execCtx context.Context) error {
-			_, err := page.AddScriptToEvaluateOnNewDocument(stealthInitScript).Do(execCtx)
+			_, err := page.AddScriptToEvaluateOnNewDocument(stealthScript(options)).Do(execCtx)
 			return err
 		}))
 	}

@@ -102,7 +102,7 @@ func (b *RodBackend) preparePage(page *rod.Page) error {
 		}
 	}
 	if b.options.Stealth {
-		if _, err := page.EvalOnNewDocument(stealthInitScript); err != nil && firstErr == nil {
+		if _, err := page.EvalOnNewDocument(stealthScript(b.options)); err != nil && firstErr == nil {
 			firstErr = fmt.Errorf("stealth script: %w", err)
 		}
 	}

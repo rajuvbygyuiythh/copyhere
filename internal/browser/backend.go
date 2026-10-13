@@ -28,6 +28,22 @@ type Options struct {
 	LowMemory bool
 	// WindowSize "W,H" (optional); Stealth picks a realistic one when empty.
 	WindowSize string
+	// HardwareConcurrency (optional) overrides navigator.hardwareConcurrency
+	// so many accounts on one big PC do not all report the same unusual
+	// core count (the site receives it in every message's fingerprint).
+	HardwareConcurrency int
+}
+
+// PickHardwareConcurrency returns a common, stable core count for a profile
+// name (4/6/8/12/16), so each account keeps the same value across runs.
+func PickHardwareConcurrency(profile string) int {
+	choices := []int{4, 6, 8, 8, 12, 16}
+	var h uint32 = 2166136261
+	for i := 0; i < len(profile); i++ {
+		h ^= uint32(profile[i])
+		h *= 16777619
+	}
+	return choices[int(h%uint32(len(choices)))]
 }
 
 // Inspection is what the site can see from JavaScript; used for the

@@ -78,3 +78,31 @@ A later Start skips accounts that are already chatting in a live window.
 component updates / background mode / speech API / pings, JS heap cap 256 MB
 → roughly 150–250 MB per window instead of 300–500. A shared-Chrome
 per-account-context backend (~70–120 MB/account) is the next phase.
+
+## Real-client parity (2026-10-14, from the owner's DevTools captures)
+
+Captured from the real ChitChat web app (Chrome, 2026-10-09) and now mirrored
+by the bot in **both** Classic and Browser mode (`internal/bot/client_sync.go`):
+
+| Real client does | Bot now does |
+|---|---|
+| `POST /match` with `accept: application/json` + header `response-time-id` | same; header = current user id XOR-encoded with the transport key + fresh 8-char salt (same scheme as `transport-encoding`, verified by decoding 25 captured values) |
+| `PATCH /match/disconnect` (also with `response-time-id`) before the next `POST /match` | `match()` sends the disconnect first whenever the account was inside a match (`noteActiveMatch` / `takeActiveMatch`); a closed-match `matchUpdate` clears the note |
+| `PATCH /users/me/conversations/{id}/read` for every partner message shown | `withReadReceipts` relay around the event channel: 0.3–1.2 s after a partner `chatMessage`, debounced 1.5 s per conversation, best effort |
+| socket: `40{"release":…}` then `42["presenceSync"]` immediately and every 30 s | `realtime.go` emits `presenceSync` on connect + 30 s ticker (write mutex shared with pongs) |
+| app load: `GET /match/active`, `GET /moderation/standing` | `logAccountStanding` at worker start → `[standing] GOOD — no warnings, no limits.` or `[standing] WARN standing=… pendingWarnings=… activeViolations=… limitedFeatures=…` |
+| fingerprint `hardwareConcurrency` = the PC's real core count (28 on the owner's PC, identical for every account) | stealth init script pins `navigator.hardwareConcurrency` to a stable per-profile value (4/6/8/12/16, `browser.PickHardwareConcurrency`) |
+
+Other capture facts worth remembering: message send rate limit is 10 per 3 s
+(`x-ratelimit-limit: 10`, reset 3), `GET …/messages` 500 per minute; the server
+sends `messageEdited` with `flags=1` when it redacts a flagged text (e.g.
+"Horny?"); the `transport-encoding` fingerprint schema in the bot matches the
+real one field for field (`userAgent … hardwareConcurrency`), and the fingerprint
+carries the browser timezone — so the timezone emulation shipped in Live Browser
+v2 also fixes the value the site receives on every message.
+
+All of this is best effort: a failing parity call is logged once per account
+(`[sync] …`) and never stops the worker. Request bodies of `/read` and
+`/match/disconnect` were not in the capture; the bot sends `{}` (same as the
+working `/typing` call). If the live log shows `[sync] … -> 400 …`, send that
+line and the body will be adjusted.

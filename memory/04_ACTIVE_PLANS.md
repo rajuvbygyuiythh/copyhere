@@ -1,3 +1,5 @@
+> P10 Real-client parity SHIPPED 2026-10-14 (see docs/BROWSER_MODE.md).
+
 # 04 — ACTIVE PLANS (status: DONE / APPROVED / PROPOSED / LATER)
 
 ## P1 — EVAChat Flow port + AI compose layer — DONE

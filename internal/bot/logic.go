@@ -825,23 +825,7 @@ func generateNonce(alphabet string, length int) string {
 
 func generateTransportEncoding(key string, fingerprint model.TransportFingerprint) string {
 	payload, _ := json.Marshal(fingerprint)
-	alphabet := "0123456789abcdefghijklmnopqrstuvwxyz"
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	salt := make([]byte, 8)
-	for i := range salt {
-		salt[i] = alphabet[rng.Intn(len(alphabet))]
-	}
-
-	var builder strings.Builder
-	builder.Grow(len(salt) + len(payload)*2)
-	builder.Write(salt)
-
-	for index, char := range payload {
-		value := char ^ key[index%len(key)] ^ salt[index%len(salt)]
-		builder.WriteString(fmt.Sprintf("%02x", value))
-	}
-
-	return builder.String()
+	return xorEncode(key, payload)
 }
 
 func buildMultipartBody(fields map[string]string) (string, bytes.Buffer) {
@@ -870,7 +854,7 @@ func matchAndChat(
 	realtimeEvents <-chan realtimeEvent,
 ) (bool, error) {
 	for {
-		if err := match(ctx, client, cfg); err != nil {
+		if err := match(ctx, client, cfg, currentUserID); err != nil {
 			return false, fmt.Errorf("match request failed: %w", err)
 		}
 		logln(cfg, "Match request sent. Waiting for a new conversation...")
@@ -886,6 +870,7 @@ func matchAndChat(
 
 		if isUserFlagged(cfg.DataDir, target.UserID) {
 			logf(cfg, "User %s (ID: %s) is globally flagged. Hitting match API to skip and request a new user.\n", target.Username, target.UserID)
+			noteActiveMatch(currentUserID, target.ConversationID)
 
 			if state, accountKey, accountState, err := loadBotAccountState(p.BotState, currentUserID); err == nil {
 				accountState.SkippedUsersCount++
@@ -897,6 +882,7 @@ func matchAndChat(
 		}
 
 		logf(cfg, "New match connected: user %s (ID: %s), conversation %s\n", target.Username, target.UserID, target.ConversationID)
+		noteActiveMatch(currentUserID, target.ConversationID)
 
 		return executeMatchChatSequence(ctx, client, cfg, p, login, currentUserID, target, rng, realtimeEvents)
 	}

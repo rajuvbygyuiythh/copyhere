@@ -127,10 +127,13 @@ func Run(ctx context.Context, cfg Config) (retErr error) {
 	}
 	var realtimeEvents <-chan realtimeEvent
 	var stopRealtime context.CancelFunc
+	var syncClient *api.Client // long-lived client for read receipts / startup calls
 	if bsession != nil {
 		logln(cfg, "[browser] Realtime websocket is off in Browser mode; the window polls for new messages every few seconds instead.")
-		realtimeEvents = startBrowserEventPoller(ctx, cfg, bsession.client(login), currentUserID, bsession)
+		syncClient = bsession.client(login)
+		realtimeEvents = startBrowserEventPoller(ctx, cfg, syncClient, currentUserID, bsession)
 	} else {
+		syncClient = api.New(login, cfg.AppURL, cfg.ProxyRotator)
 		realtimeEvents, stopRealtime = startRealtimeListener(ctx, cfg, login, currentUserID)
 	}
 	defer func() {
@@ -138,6 +141,10 @@ func Run(ctx context.Context, cfg Config) (retErr error) {
 			stopRealtime()
 		}
 	}()
+	// Real-client parity: read receipts for partner messages + the SPA's
+	// load-time calls (/match/active, /moderation/standing).
+	realtimeEvents = withReadReceipts(ctx, syncClient, cfg, currentUserID, realtimeEvents)
+	logAccountStanding(ctx, syncClient, cfg)
 
 	logln(cfg, "Login ready. Starting bot loop.")
 	browserCycleFailures := 0
@@ -371,15 +378,18 @@ func loadSavedLogin(p paths) (model.LoginInfo, error) {
 	return login, nil
 }
 
-func match(ctx context.Context, client *api.Client, cfg Config) error {
+func match(ctx context.Context, client *api.Client, cfg Config, currentUserID string) error {
+	// Real client: leave the current chat first (PATCH /match/disconnect),
+	// then ask for the next partner. Both calls carry "response-time-id".
+	if previous := takeActiveMatch(currentUserID); previous != "" {
+		disconnectMatch(ctx, client, cfg, currentUserID)
+	}
 	body := `{"withInterests":false,"restart":true}`
 	resp, err := client.Fetch(ctx, api.FetchRequest{
-		Method: "POST",
-		URL:    cfg.APIBaseURL + "/match",
-		Headers: map[string]string{
-			"Content-Type": "application/json",
-		},
-		Body: &body,
+		Method:  "POST",
+		URL:     cfg.APIBaseURL + "/match",
+		Headers: matchHeaders(cfg, currentUserID),
+		Body:    &body,
 	})
 	if err != nil {
 		return fmt.Errorf("match request failed: %w", err)

@@ -167,6 +167,8 @@ func browserWindowOptions(cfg Config, userDataDir string, selectedProxy *proxy.E
 		Locale:      "en-US",
 		Stealth:     true,
 		LowMemory:   true,
+
+		HardwareConcurrency: browser.PickHardwareConcurrency(cfg.Profile),
 	}
 }
 

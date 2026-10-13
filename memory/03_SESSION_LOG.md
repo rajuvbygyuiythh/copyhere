@@ -119,3 +119,9 @@ Format: date · commit(s) · what · why/notes. Older history condensed.
   light browser; asked plan→scope→fix→verify. ask_user: cause = Run Fresh
   Browsers; tz per proxy; both lightweight options; captures later. Shipped
   P9 A/B/C1 (handover, close reasons, stealth, tz, low-mem). C2 pending.
+
+## 2026-10-14 — P10 real-client parity (DevTools capture analysis)
+- Owner shared capture repo `rajuvbygyuiythh/wbbbbbbbbbbsck`; analysed `17_endpoints_summary`, `19_api_schemas`, `15_websocket_all`, `16_http_all`, `capture.jsonl`, `old data.txt` (HAR, ws only) with redaction; sensitive files untouched.
+- Decoded `response-time-id` = xorEncode(transportKey, currentUserId) — confirmed on 25 samples; transport-encoding fingerprint schema identical to ours (timezone + hardwareConcurrency travel to the server on every message).
+- Shipped: `internal/bot/client_sync.go` (+tests), `match()` now disconnect→match with headers, `withReadReceipts`, `logAccountStanding`, `presenceSync` ticker in `realtime.go`, `browser.Options.HardwareConcurrency` + `stealthScript(options)`.
+- Checks: browser_pkg_check OK, offline_typecheck OK, `go test -race ./internal/bot ./internal/api` OK, vet clean.

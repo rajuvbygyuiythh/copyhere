@@ -1083,6 +1083,7 @@ func (a *App) runFreshBrowser(profileDir string, profileName string, settings mo
 		Locale:              "en-US",
 		Stealth:             true,
 		LowMemory:           true,
+		HardwareConcurrency: browser.PickHardwareConcurrency(profileName),
 	}); err != nil {
 		a.log("error", fmt.Sprintf("[%s fresh %d/%d] Browser start failed: %v", profileName, index, total, err))
 		return

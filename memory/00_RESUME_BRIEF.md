@@ -1,4 +1,5 @@
-# 00 — RESUME BRIEF (always current; last update: 2026-10-14 (P9 live browser v2), Asia/Dhaka)
+# 00 — RESUME BRIEF (always current; last update: 2026-10-14 (P10 real-client parity), Asia/Dhaka)
+0. **(2026-10-14, latest) P10 real-client parity shipped** — analysed owner's DevTools capture repo `wbbbbbbbbbbsck` (redacted; cookies/tokens never opened). New `internal/bot/client_sync.go`: `response-time-id` header (= XOR-encoded user id, same scheme as transport-encoding) on `POST /match` + new `PATCH /match/disconnect` (sent before the next match), read receipts `PATCH …/read` via `withReadReceipts` relay, `[standing]` log from `GET /moderation/standing` + `/match/active` at worker start; `realtime.go` emits `42["presenceSync"]` on connect + every 30 s; browser stealth pins per-profile `navigator.hardwareConcurrency` (`browser.PickHardwareConcurrency`). Tests `client_sync_test.go`. Docs: `docs/BROWSER_MODE.md` "Real-client parity".
 
 ## Where we are (one paragraph)
 
