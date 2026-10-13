@@ -275,7 +275,7 @@
             <div class="hint-text">
               Off = the bot works exactly as before (browser only for login, then API calls from the app).<br>
               On = one visible browser window per account opens at Start and <strong>stays open until you press Stop</strong>: login, matching and every message happen through that window (real cookies, real browser, no websocket). If the session expires the bot waits for you to log in again in the window. <strong>Stop</strong> saves the session (<code>login_info.json</code>) and closes the window, so the next Start logs in automatically.<br>
-              Notes: Headless is ignored in this mode (the window must be visible). Each account = one Chrome window (about 300–500 MB RAM), so use it for a few accounts. The proxy is picked per window at Start and stays fixed. New replies are picked up by the normal cycle (no realtime push in this version).
+              Notes: Headless is ignored in this mode (the window must be visible). Each account = one Chrome window (about 300–500 MB RAM), so use it for a few accounts. The proxy is picked per window at Start and stays fixed. New replies are read through the window every few seconds (no websocket), so a reply can take up to about 5 seconds to be noticed.
             </div>
           </div>
 
