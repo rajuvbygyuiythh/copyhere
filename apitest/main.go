@@ -42,18 +42,14 @@ type config struct {
 	AgeMax      int
 	Countries   []string
 	ShowPrompt  bool
+	// ExtraJSON is merged into every request body, e.g. to disable thinking:
+	//   {"chat_template_kwargs":{"enable_thinking":false}}
+	ExtraJSON map[string]any
 }
 
 type message struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
-}
-
-type chatRequest struct {
-	Model       string    `json:"model"`
-	Messages    []message `json:"messages"`
-	MaxTokens   int       `json:"max_tokens,omitempty"`
-	Temperature float64   `json:"temperature"`
 }
 
 type chatResponse struct {
@@ -130,7 +126,13 @@ func ping(cfg config) {
 	fmt.Println(prettyJSON(body))
 	var parsed chatResponse
 	if json.Unmarshal(body, &parsed) == nil && len(parsed.Choices) > 0 {
-		fmt.Printf("\nmodel said: %q\n", strings.TrimSpace(parsed.Choices[0].Message.Content))
+		said := strings.TrimSpace(parsed.Choices[0].Message.Content)
+		fmt.Printf("\nmodel said: %q\n", said)
+		if said == "" {
+			fmt.Println("RESULT: API OK but EMPTY reply -> reasoning model used all tokens thinking.")
+			fmt.Println("        -> set MAX_TOKENS=1024 or EXTRA_JSON to disable thinking, or pick a non-reasoning model")
+			return
+		}
 		fmt.Println("RESULT: API OK")
 		return
 	}
@@ -274,14 +276,37 @@ func complete(cfg config, msgs []message) (string, string, error) {
 	if parsed.Usage != nil {
 		info = fmt.Sprintf(", %d+%d tok", parsed.Usage.PromptTokens, parsed.Usage.CompletionTokens)
 	}
-	if fr := parsed.Choices[0].FinishReason; fr != "" && fr != "stop" {
+	choice := parsed.Choices[0]
+	if fr := choice.FinishReason; fr != "" && fr != "stop" {
 		info += ", finish=" + fr
 	}
-	return parsed.Choices[0].Message.Content, info, nil
+	content := choice.Message.Content
+	if strings.TrimSpace(thinkRe.ReplaceAllString(content, "")) == "" {
+		reasoning := strings.TrimSpace(choice.Message.ReasoningContent)
+		if reasoning == "" {
+			reasoning = strings.TrimSpace(content)
+		}
+		hint := "model spent all tokens THINKING and never wrote the reply"
+		if reasoning != "" {
+			hint += fmt.Sprintf(" (reasoning %d chars: %q)", len(reasoning), trim(reasoning, 160))
+		}
+		hint += "\n     FIX: raise MAX_TOKENS (e.g. 1024) or disable thinking with EXTRA_JSON in apitest.config.txt, or use a non-reasoning model (e.g. meta-llama/Llama-3.3-70B-Instruct)"
+		return "", "", errors.New(hint)
+	}
+	return content, info, nil
 }
 
 func rawCall(cfg config, msgs []message, maxTokens int) (int, []byte, error) {
-	payload, err := json.Marshal(chatRequest{Model: cfg.Model, Messages: msgs, MaxTokens: maxTokens, Temperature: cfg.Temperature})
+	fields := map[string]any{
+		"model":       cfg.Model,
+		"messages":    msgs,
+		"max_tokens":  maxTokens,
+		"temperature": cfg.Temperature,
+	}
+	for k, v := range cfg.ExtraJSON {
+		fields[k] = v
+	}
+	payload, err := json.Marshal(fields)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -390,6 +415,12 @@ func loadConfig(path string) (config, error) {
 			if n, err := strconv.Atoi(value); err == nil && n >= 18 {
 				cfg.AgeMax = n
 			}
+		case "EXTRA_JSON":
+			var extra map[string]any
+			if err := json.Unmarshal([]byte(value), &extra); err != nil {
+				return cfg, fmt.Errorf("EXTRA_JSON is not valid JSON: %v", err)
+			}
+			cfg.ExtraJSON = extra
 		case "COUNTRIES":
 			var list []string
 			for _, c := range strings.Split(value, ",") {

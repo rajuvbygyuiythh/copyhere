@@ -13,7 +13,16 @@ API_KEY=your-featherless-api-key
 
 # optional tuning
 TIMEOUT_SEC=60
-MAX_TOKENS=80
+# reasoning models (DeepSeek V4/R1, Qwen3 ...) burn tokens on "thinking" before the reply.
+# If you see "finish=length" with an empty reply: raise MAX_TOKENS, or disable thinking
+# with EXTRA_JSON (try one of these; which one works depends on the provider/model):
+#   EXTRA_JSON={"chat_template_kwargs":{"enable_thinking":false}}
+#   EXTRA_JSON={"thinking":{"type":"disabled"}}
+#   EXTRA_JSON={"reasoning":{"effort":"none"}}
+# or simply use a non-reasoning instruct model, e.g. on Featherless:
+#   MODEL=meta-llama/Llama-3.3-70B-Instruct
+#   MODEL=Qwen/Qwen2.5-72B-Instruct
+MAX_TOKENS=1024
 TEMPERATURE=0.9
 HISTORY=30
 AGE_MIN=20
