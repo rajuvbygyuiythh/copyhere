@@ -97,16 +97,25 @@ var (
 		regexp.MustCompile(`(?i)\bi'?m (\d{2})\b`),
 		regexp.MustCompile(`(?i)\b(\d{2}) ?(yo|years? old|yrs)\b`),
 	}
-	byeRe       = regexp.MustCompile(`(?i)\b(bye|gtg|g2g|brb|ttyl|cya|gotta go|leaving|later)\b`)
-	questionRe  = regexp.MustCompile(`(?i)\b(wyd|hbu|wbu|how|what|where|why|when|who|r u|are u|do u|u got|got any|asl|age)\b`)
-	botQRe      = regexp.MustCompile(`(?i)(r u (a )?(bot|real|fake|ai|human)|are (u|you) (a )?(bot|real|fake|ai|human)|\bbot\b|\bfake\b|\bscam|\bai\b|\breal\?)`)
-	picAskRe    = regexp.MustCompile(`(?i)\b(send|show|got|have|any|ur|your)\b.*\b(pics?|photo|selfie|face)\b|\b(pics?|photo|selfie)\?`)
-	laughRe     = regexp.MustCompile(`(?i)\b(lol|lmao|haha+|hehe|rofl|😂|💀)`)
-	lonelyRe    = regexp.MustCompile(`(?i)\b(bored|boring|alone|lonely|cant sleep|can't sleep|nothing much|nm|nothin|chilling|chillin)\b`)
-	lowEffortRe = regexp.MustCompile(`(?i)^(k|kk|ok|okay|oh|ohh|lol|lmao|haha+|hmm+|cool|nice|yea+h*|ya|yep|nah|idk|same|true|fr|wow|good|fine|nothing|nm|u\??|wbu\??|hbu\??|and\??|so\??|\W*)$`)
-	hesitantRe  = regexp.MustCompile(`(?i)\b(idk|maybe|why|what for|hmm+|depends|not sure|later|dunno|we'?ll see|for what)\b`)
-	aslAskRe    = regexp.MustCompile(`(?i)(\basl\b|\bage\b|how old|\bold r u|\bold are (u|you)|\bm or f\b|\bf or m\b|\bgender\b|r u a (girl|guy|boy|female|male)|are (u|you) a (girl|guy|boy|female|male)|\bgirl or\b|^(u|you|wbu|hbu|and u|n u)\s*\??$)`)
-	addedRe     = regexp.MustCompile(`(?i)\b(added|sent (u|you)? ?(a )?(req|request)|just added|adding|requested|follow(ed)?)\b`)
+	byeRe        = regexp.MustCompile(`(?i)\b(bye|gtg|g2g|brb|ttyl|cya|gotta go|leaving|later)\b`)
+	questionRe   = regexp.MustCompile(`(?i)\b(wyd|hbu|wbu|how|what|where|why|when|who|r u|are u|do u|u got|got any|asl|age)\b`)
+	botQRe       = regexp.MustCompile(`(?i)(r u (a )?(bot|real|fake|ai|human)|are (u|you) (a )?(bot|real|fake|ai|human)|\bbot\b|\bfake\b|\bscam|\bai\b|\breal\?)`)
+	picAskRe     = regexp.MustCompile(`(?i)\b(send|show|got|have|any|ur|your)\b.*\b(pics?|photo|selfie|face)\b|\b(pics?|photo|selfie)\?`)
+	laughRe      = regexp.MustCompile(`(?i)\b(lol|lmao|haha+|hehe|rofl|😂|💀)`)
+	lonelyRe     = regexp.MustCompile(`(?i)\b(bored|boring|alone|lonely|cant sleep|can't sleep|nothing much|nm|nothin|chilling|chillin)\b`)
+	lowEffortRe  = regexp.MustCompile(`(?i)^(k|kk|ok|okay|oh|ohh|lol|lmao|haha+|hmm+|cool|nice|yea+h*|ya|yep|nah|idk|same|true|fr|wow|good|fine|nothing|nm|u\??|wbu\??|hbu\??|and\??|so\??|\W*)$`)
+	hesitantRe   = regexp.MustCompile(`(?i)\b(idk|maybe|why|what for|hmm+|depends|not sure|later|dunno|we'?ll see|for what)\b`)
+	aslAskRe     = regexp.MustCompile(`(?i)(\basl\b|\bage\b|how old|\bold r u|\bold are (u|you)|\bm or f\b|\bf or m\b|\bgender\b|r u a (girl|guy|boy|female|male)|are (u|you) a (girl|guy|boy|female|male)|\bgirl or\b|^(u|you|wbu|hbu|and u|n u)\s*\??$)`)
+	placeRe      = regexp.MustCompile(`(?i)\b(?:from|in|live in|living in|based in)\s+(?:the\s+)?([a-z]{3,}(?:\s[a-z]{3,})?)\b|\b([a-z]{3,}(?:\s[a-z]{3,})?)\s+here\b`)
+	placeStop    = regexp.MustCompile(`(?i)^(the|here|there|bed|home|class|school|work|college|uni|my|a|an|this|that|love|mood|fact|case|general|front|time|real|life|town|it|and|but|lol|rn|now|bored|chat)$`)
+	knownPlaces  = regexp.MustCompile(`(?i)\b(usa|us|america|uk|england|london|canada|australia|germany|france|italy|spain|netherlands|sweden|norway|poland|ireland|scotland|mexico|brazil|india|texas|california|cali|florida|new york|nyc|ny|la|chicago|ohio|georgia|arizona|nevada|vegas|seattle|boston|michigan|colorado|utah|oregon|jersey|virginia|carolina|tennessee|kentucky|alabama|louisiana|miami|dallas|houston|austin|atlanta|philly|detroit|toronto|vancouver|sydney|melbourne|berlin|paris|amsterdam|dubai|pakistan|bangladesh|nigeria|philippines|indonesia|turkey|egypt|kenya|south africa|russia|ukraine|romania|greece|portugal|belgium|denmark|finland|austria|switzerland|czech|hungary|serbia|croatia)\b`)
+	nameRe       = regexp.MustCompile(`(?i)\b(?:i'?m|im|my name is|name's|names|call me|its|it's)\s+([a-z]{3,12})\b`)
+	nameStop     = regexp.MustCompile(`(?i)^(bored|horny|good|fine|home|here|alone|tired|from|just|not|also|single|new|down|kinda|lowkey|sorry|okay|chilling|chillin|lol|male|female|guy|girl|real|sure|done|back|still|only|like|about|gonna|going|trying|looking|texas|usa|cool|busy|lost|sad|happy|high|drunk|sleepy|hungry|the|that|this|what|wondering|curious|asking|serious|joking|kidding|saying|talking|thinking|waiting|lying|laying|sitting|doing|dying|dead)$`)
+	doingRe      = regexp.MustCompile(`(?i)\b(in bed|laying|lying|chilling|chillin|watching|gaming|playing|working|studying|eating|cooking|driving|at work|at home|at school|at the gym|gym|smoking|drinking|netflix|youtube|tiktok|cant sleep|can't sleep|just woke|about to sleep|nothing much|nothin|nm\b)`)
+	bareMaleRe   = regexp.MustCompile(`(?i)\b(i'?m|im) (a )?(guy|male|boy|man|dude)\b|^(m|male|guy|boy|dude)\W*$`)
+	bareFemaleRe = regexp.MustCompile(`(?i)\b(i'?m|im) (a )?(girl|female|woman)\b|^(f|female|girl)\W*$`)
+	bareAgeRe    = regexp.MustCompile(`(?i)^(?:im |i'm |i am |age )?(\d{2})\W*$`)
+	addedRe      = regexp.MustCompile(`(?i)\b(added|sent (u|you)? ?(a )?(req|request)|just added|adding|requested|follow(ed)?)\b`)
 )
 
 var allMoods = []string{"friendly", "playful", "lonely", "flirty", "fun/joke", "curious", "teasing"}
@@ -165,6 +174,11 @@ type director struct {
 	userShared    bool // told something about themselves
 	userAdded     bool // after the share: "added u"
 	userAslAsk    bool // "asl?", "how old r u", "m or f", "u?"
+	userGaveAsl   bool // this message contained their age/gender
+	toldAsl       bool // we already sent our own "f 21"
+	userPlace     string
+	userName      string
+	userDoing     string
 }
 
 type plan struct {
@@ -206,19 +220,68 @@ func (d *director) observe(text string) {
 	d.userShared = !d.userQuestion && !d.userLowEffort && words >= 4
 	d.userRefused = d.askedSnap && !d.shared && refuseRe.MatchString(low) && !yesRe.MatchString(low)
 	d.userHesitant = d.askedSnap && !d.shared && !d.userRefused && hesitantRe.MatchString(low) && !yesRe.MatchString(low)
-	if d.userLowEffort {
-		d.coldStreak++
-	} else {
-		d.coldStreak = 0
-	}
-
+	d.userGaveAsl = false
 	if g, a, ok := genderAge(low); ok {
+		d.userGaveAsl = true
 		if d.userAge == 0 {
-			d.userAge, d.userGender = a, g
+			d.userAge = a
+		}
+		if d.userGender == "" && g != "" {
+			d.userGender = g
 		}
 		if a < 18 {
 			d.underage = true
 		}
+	}
+	if d.userGender == "" {
+		switch {
+		case bareMaleRe.MatchString(low):
+			d.userGender, d.userGaveAsl = "m", true
+		case bareFemaleRe.MatchString(low):
+			d.userGender, d.userGaveAsl = "f", true
+		}
+	}
+	if d.userAge == 0 {
+		if m := bareAgeRe.FindStringSubmatch(low); m != nil {
+			if n, err := strconv.Atoi(m[1]); err == nil && n >= 13 && n <= 70 {
+				d.userAge, d.userGaveAsl = n, true
+				if n < 18 {
+					d.underage = true
+				}
+			}
+		}
+	}
+	if d.userPlace == "" {
+		if m := knownPlaces.FindString(low); m != "" {
+			d.userPlace = m
+		} else if m := placeRe.FindStringSubmatch(low); m != nil {
+			cand := m[1]
+			if cand == "" {
+				cand = m[2]
+			}
+			first := strings.Fields(cand)
+			if len(first) > 0 && !placeStop.MatchString(first[0]) && !d.userHorny && !lowEffortRe.MatchString(first[0]) {
+				d.userPlace = cand
+			}
+		}
+	}
+	if d.userName == "" {
+		if m := nameRe.FindStringSubmatch(low); m != nil && !nameStop.MatchString(m[1]) && !knownPlaces.MatchString(m[1]) && !doingRe.MatchString(m[1]) {
+			if _, _, isAsl := genderAge(m[1]); !isAsl {
+				d.userName = m[1]
+			}
+		}
+	}
+	if m := doingRe.FindString(low); m != "" {
+		d.userDoing = m
+	}
+	if d.userGaveAsl {
+		d.userLowEffort = false // "m" / "21" is an answer, not a cold reply
+	}
+	if d.userLowEffort {
+		d.coldStreak++
+	} else {
+		d.coldStreak = 0
 	}
 	switch {
 	case d.userHorny:
@@ -245,6 +308,48 @@ func (d *director) observe(text string) {
 	default:
 		d.tier = tierCold
 	}
+}
+
+// known returns what the stranger already told us, for the director note.
+func (d *director) known() (facts string, dontAsk []string) {
+	var parts []string
+	if d.userGender != "" || d.userAge > 0 {
+		parts = append(parts, strings.TrimSpace(fmt.Sprintf("%s %s", d.userGender, nz(d.userAge))))
+	}
+	if d.userGender != "" {
+		dontAsk = append(dontAsk, "gender / m or f")
+	}
+	if d.userAge > 0 {
+		dontAsk = append(dontAsk, "age")
+	}
+	if d.userPlace != "" {
+		parts = append(parts, "from "+d.userPlace)
+		dontAsk = append(dontAsk, "where they are from")
+	}
+	if d.userName != "" {
+		parts = append(parts, "name "+d.userName)
+		dontAsk = append(dontAsk, "their name")
+	}
+	if d.userDoing != "" {
+		parts = append(parts, "doing: "+d.userDoing)
+		dontAsk = append(dontAsk, "what they are doing (wyd)")
+	}
+	return strings.Join(parts, ", "), dontAsk
+}
+
+func nz(n int) string {
+	if n == 0 {
+		return ""
+	}
+	return strconv.Itoa(n)
+}
+
+// aslAnswer builds the exact short self-intro the model should use.
+func (d *director) aslAnswer(withPlace bool) string {
+	if withPlace {
+		return "'f <your age> <your country>'"
+	}
+	return "'f <your age>'"
 }
 
 func (d *director) shareTurn(cfg config) int {
@@ -299,7 +404,9 @@ func (d *director) plan(cfg config, turn int, userText string) plan {
 	base := "reply to exactly what they just said"
 	switch {
 	case d.userAslAsk:
-		base = "they ask your asl / age / gender: answer in the short app style 'f <your age>' (add your country only if they asked where from), nothing like 'female' or 'i am a girl'"
+		base = "they ask your asl / age / gender: answer in the short app style " + d.aslAnswer(strings.Contains(userText, "from") || strings.Contains(userText, "where")) + ", nothing like 'female' or 'i am a girl'"
+	case d.userGaveAsl:
+		base = "they just told you their age/gender" + map[bool]string{true: " and where they are from", false: ""}[d.userPlace != ""] + ": reply with yours the same short way " + d.aslAnswer(d.userPlace != "") + " — do NOT add 'u?', 'hbu' or 'wbu', you already know theirs"
 	case d.userQuestion:
 		base = "they asked you something: answer it directly first, in your own words"
 	case d.userShared:
@@ -391,15 +498,33 @@ func (d *director) plan(cfg config, turn int, userText string) plan {
 	case turn == 1:
 		p.Why = "opener"
 		p.Instruction = base + ". greet back casually and ask one quick thing about them (age / where from / wyd)."
-	case d.userAslAsk:
+	case d.userAslAsk && d.userAge > 0 && d.userGender != "":
 		p.Why = "asl answer"
-		p.Instruction = base + ". then one short question back (their asl if u don't know it yet, otherwise wyd)."
+		d.toldAsl = true
+		p.Instruction = base + ". u already know theirs so NO 'u?'. just the answer, optionally one tiny casual add like 'wyd' or 'lol'. no other question."
+	case d.userAslAsk:
+		p.Why = "asl answer + ask theirs"
+		d.toldAsl = true
+		p.Instruction = base + ", then ask theirs the same short way, like 'f <age>, u?'."
+	case d.userGaveAsl && d.toldAsl:
+		p.Why = "asl completed"
+		p.Instruction = "they just added their " + map[bool]string{true: "gender", false: "age"}[d.userAge > 0 && d.userGender != "" && len(strings.TrimSpace(userText)) <= 6 && !strings.ContainsAny(userText, "0123456789")] + ": react in 1-3 words ('ok cool' / 'nice') and ask one easy thing (wyd / what brings u here). do NOT repeat your own asl, u already said it. no 'u?'."
+	case d.userGaveAsl && d.userAge > 0 && d.userGender != "":
+		p.Why = "asl back (no u?)"
+		d.toldAsl = true
+		p.Instruction = base + ". one line like 'f 20' or 'f 20 lol' or 'f 20, wyd' — nothing more. no 'u?'."
+	case d.userGaveAsl && d.userGender == "":
+		p.Why = "asl back, gender missing"
+		d.toldAsl = true
+		p.Instruction = base + " and only ask 'm or f?' since they didn't say it. one line like 'f 20, m or f?'."
+	case d.userGaveAsl && d.userAge == 0:
+		p.Why = "asl back, age missing"
+		d.toldAsl = true
+		p.Instruction = base + " and only ask their age ('how old r u' style). one line."
 	case turn == 2 && d.userAge == 0:
 		p.Why = "asl"
+		d.toldAsl = true
 		p.Instruction = base + ". they didn't say their age/gender yet: give yours the short way ('f <age>') and ask theirs, like 'f 21, u?'."
-	case turn == 2 && d.userAge > 0:
-		p.Why = "asl back"
-		p.Instruction = base + ". they gave their asl: react in 1-3 words, give yours the same short way ('f <age>' + where from) and ask one easy thing (wyd / what brings u here)."
 	case d.coldStreak >= 2:
 		p.Why = "cold streak -> hook"
 		hooks := []string{
@@ -434,7 +559,7 @@ func (d *director) plan(cfg config, turn int, userText string) plan {
 	case turn%3 == 0:
 		wantDouble = true // rhythm
 	}
-	if wantDouble && d.lastDouble != turn-1 && turn > 1 && !d.userPicAsk {
+	if wantDouble && d.lastDouble != turn-1 && turn > 1 && !d.userPicAsk && !d.userAslAsk && !d.userGaveAsl {
 		p.Double = true
 		d.lastDouble = turn
 		p.Instruction += " write TWO lines: first the reaction/answer, second the question."
@@ -473,6 +598,22 @@ func replyProblem(lines []string, d *director, userText string, history []messag
 	}
 	if d.userQuestion && allQuestions {
 		return "did not answer their question, only asked back"
+	}
+	joined := strings.ToLower(strings.Join(lines, " "))
+	if (d.userGaveAsl || d.userAslAsk) && d.userAge > 0 && d.userGender != "" && regexp.MustCompile(`\b(u|you|hbu|wbu|and u|n u|urs|yours)\s*\?`).MatchString(joined) {
+		return "asked 'u?' although they already gave their age/gender"
+	}
+	if d.userAge > 0 && regexp.MustCompile(`\b(how old|ur age|your age|asl)\b`).MatchString(joined) {
+		return "asked their age again (they said " + strconv.Itoa(d.userAge) + ")"
+	}
+	if d.userGender != "" && regexp.MustCompile(`\b(m or f|f or m|r u a (girl|guy)|are (u|you) a (girl|guy)|guy or girl|boy or girl)\b`).MatchString(joined) {
+		return "asked their gender again (they said " + d.userGender + ")"
+	}
+	if d.userPlace != "" && regexp.MustCompile(`\b(where (r|are) (u|you) from|where u from|where from|where (r|are) (u|you) at|wya)\b`).MatchString(joined) {
+		return "asked where they are from again (they said " + d.userPlace + ")"
+	}
+	if d.userName != "" && regexp.MustCompile(`\b(ur name|your name|whats ur name|what's your name)\b`).MatchString(joined) {
+		return "asked their name again (" + d.userName + ")"
 	}
 	for _, l := range lines {
 		if forbiddenRe.MatchString(l) {
@@ -518,6 +659,9 @@ func buildMessages(s *session, cfg config, p plan, turn int) []message {
 	}
 	msgs = append(msgs, h...)
 	note := fmt.Sprintf("[director note for your reply #%d — follow it, never mention it]\nmood right now: %s (%s).\nwhat this message must do: %s\n", turn, p.Mood, moodHints[p.Mood], p.Instruction)
+	if facts, dontAsk := s.Director.known(); facts != "" {
+		note += fmt.Sprintf("what they already told you: %s. NEVER ask again for: %s. a real person remembers.\n", facts, strings.Join(dontAsk, ", "))
+	}
 	if p.Double {
 		note += "format: exactly TWO short lines separated by a newline, each max 8 words.\n"
 	} else {
@@ -586,7 +730,8 @@ func chatLoop(cfg config, personaTemplate string) {
 			fmt.Println("--- system prompt ---\n" + s.System + "\n---------------------")
 			continue
 		case "/state":
-			fmt.Printf("--- %s | user %s%d | horny %d flirty %d | turn %d ---\n", s.Director.status(cfg, s.Turns+1), s.Director.userGender, s.Director.userAge, s.Director.hornyHits, s.Director.flirtyHits, s.Turns)
+			facts, _ := s.Director.known()
+			fmt.Printf("--- %s | knows: %q | horny %d flirty %d | turn %d ---\n", s.Director.status(cfg, s.Turns+1), facts, s.Director.hornyHits, s.Director.flirtyHits, s.Turns)
 			continue
 		case "/history":
 			for i, m := range s.History {

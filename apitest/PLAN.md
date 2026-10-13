@@ -127,7 +127,28 @@ sometimes `m 23 texas`. The persona knows this and:
   girl aged …"
 
 The tool parses his side too: `m23`, `23 m`, `m/23`, `23 male`, `guy 23`,
-`im 23`, `23 yo` → age + gender (under 18 → END).
+`im 23`, `23 yo`, bare `21`, bare `m` → age + gender (under 18 → END).
+
+### Memory — she never asks what she already knows
+
+The director keeps what the stranger told: **gender, age, place
+("from texas", "london here", "m 21 texas"), name ("im jake"), what he is doing
+("in bed", "gaming")**. Every director note then carries
+`what they already told you: m 21, from texas, name jake. NEVER ask again for: …`.
+
+| he wrote | she answers | not |
+|---|---|---|
+| `m 21` | `f 20` / `f 20 lol` / `f 20, wyd` | ~~`f 20, u?`~~ |
+| `m 21 texas` | `f 20 italy` | ~~`f 20, where u from?`~~ |
+| `21` only | `f 20, m or f?` | |
+| `m` only | `f 20, how old r u` | |
+| `m` after `21` | `ok cool, wyd` (no asl repeat) | ~~`f 20`~~ again |
+| `asl?` after he gave his | `f 20` | ~~`f 20, u?`~~ |
+
+If the model still writes `u?` / asks age, gender, place or name again, the
+reply-quality check rejects it and asks the model once more
+(`RETRY: asked 'u?' although they already gave their age/gender`).
+`/state` shows what she currently knows.
 
 ## 7. Output guard (what the real bot would do)
 
