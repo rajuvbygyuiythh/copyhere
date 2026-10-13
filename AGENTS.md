@@ -3,6 +3,22 @@
 Read this first. It is the single source of truth for the goal, the locked
 scope and the hard rules. Do not re-interpret the goal.
 
+## 0. Resume protocol (new session / lost context) — do this before anything
+
+1. Read `memory/00_RESUME_BRIEF.md` (current state, open decisions, next
+   steps), then `memory/02_RULES_AND_DECISIONS.md` and
+   `memory/04_ACTIVE_PLANS.md`. The whole `memory/` folder is the living
+   memory; `memory/README.md` explains the reading order.
+2. Work only on branch `arena/30e64ce8-copyhere`. After a sandbox reset:
+   `git fetch origin && git reset origin/arena/30e64ce8-copyhere &&
+   git checkout -- cmd/chitchatui/frontend/dist` (recipes in
+   `memory/05_ENV_RECIPES.md`).
+3. **At the end of every turn** that changed code, plans or decisions,
+   update `memory/00_RESUME_BRIEF.md`, append to `memory/03_SESSION_LOG.md`
+   and `memory/06_CHAT_HIGHLIGHTS.md`, and commit + push them together with
+   the change. Never store secrets in `memory/`.
+4. Talk to the owner in Bengali; keep memory files in English.
+
 ## 1. What this project is
 
 ChitChat Bot — a Windows desktop app (Go + Wails) plus a CLI worker that
