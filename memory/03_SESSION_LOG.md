@@ -73,4 +73,7 @@ Format: date · commit(s) · what · why/notes. Older history condensed.
   files moved, `apitest.bat` builds `go build .\cmd\apitest` from root,
   AGENTS.md §7 / docs / README updated, `apitest-only.zip` removed.
   Verified: offline_typecheck.sh green + lab binary runs.
+- Owner (screenshots of the API Chat panel, now on the NEW build): "ei
+  option gulo kivabe kaj kore?" → explained every field in Bengali (no code
+  change). Owner still has to paste key + usernames and run a real chat.
 
