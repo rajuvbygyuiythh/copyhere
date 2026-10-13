@@ -126,16 +126,13 @@ function intField(id, fallback) {
   return Number.isFinite(n) ? n : fallback;
 }
 
-// The API url / key / model fields are shared between EVAChat (hybrid) and
-// API Chat: whichever panel is visible is the source of truth on save.
+// API settings live only in the API Chat panel (EVAChat Flow is pure TXT).
 function evaAISettings() {
-  const selectedMode = document.querySelector('input[name="chat-mode"]:checked')?.value || "single";
-  const api = selectedMode === "api_chat";
   return {
-    ai_enabled: document.getElementById("evachat-ai-enabled").checked,
-    ai_base_url: document.getElementById(api ? "apichat-base-url" : "evachat-ai-base-url").value.trim(),
-    ai_model: document.getElementById(api ? "apichat-model" : "evachat-ai-model").value.trim(),
-    ai_api_key: document.getElementById(api ? "apichat-api-key" : "evachat-ai-api-key").value.trim(),
+    ai_enabled: false,
+    ai_base_url: document.getElementById("apichat-base-url").value.trim(),
+    ai_model: document.getElementById("apichat-model").value.trim(),
+    ai_api_key: document.getElementById("apichat-api-key").value.trim(),
     api_settings_saved: true,
     api_share_hot: intField("apichat-share-hot", 4),
     api_share_warm: intField("apichat-share-warm", 6),
@@ -195,10 +192,6 @@ function fillForms(snapshot) {
   const evaStatus = document.getElementById("evachat-status");
   if (evaStatus) evaStatus.textContent = currentMode === "eva_chat_flow" ? "EVAChat Flow will load the editable data/eva_chat TXT pack when the bot starts." : "TXT data is initialized when EVAChat Flow starts.";
   document.getElementById("message-usernames").value = snapshot.message.usernames || "";
-  document.getElementById("evachat-ai-enabled").checked = !!snapshot.message.ai_enabled;
-  document.getElementById("evachat-ai-base-url").value = snapshot.message.ai_base_url || "";
-  document.getElementById("evachat-ai-model").value = snapshot.message.ai_model || "";
-  document.getElementById("evachat-ai-api-key").value = snapshot.message.ai_api_key || "";
   document.getElementById("apichat-base-url").value = snapshot.message.ai_base_url || "";
   document.getElementById("apichat-model").value = snapshot.message.ai_model || "";
   document.getElementById("apichat-api-key").value = snapshot.message.ai_api_key || "";
@@ -379,22 +372,6 @@ function bindForms() {
       setChatMode("single");
     } catch (error) {
       summary.textContent = error.message || String(error);
-    }
-  });
-
-  document.getElementById("evachat-ai-test-btn").addEventListener("click", async () => {
-    const status = document.getElementById("evachat-ai-status");
-    status.textContent = "Testing AI API...";
-    try {
-      const result = await invoke("TestEVAChatAI", {
-        chat_mode: "eva_chat_flow",
-        sequence: document.getElementById("message-sequence").value,
-        usernames: document.getElementById("message-usernames").value,
-        ...evaAISettings(),
-      });
-      status.textContent = result || "AI OK";
-    } catch (error) {
-      status.textContent = "AI test failed: " + (error.message || String(error));
     }
   });
 

@@ -137,21 +137,18 @@ Dashboard → Message → choose **EVAChat Flow** → fill **Usernames** (one sn
 handle per line) → Save → Start. First start seeds `data/eva_chat/`; edit
 those TXT files and restart the bot to reload.
 
-## 7. `apitest/` — the AI funnel lab (separate module, NOT wired to the bot)
+## 7. API Chat — one brain for the bot AND the lab (2026-10-14)
 
-**If you lost context, read `apitest/HANDOFF.md` first (2 minutes), then
-`apitest/PLAN.md`.** Everything about the AI chat design lives there.
-
-* `apitest/` is its own Go module (`module apitest`, no deps). It never
-  imports the bot and the bot never imports it. Build: `apitest.bat`.
-* Purpose: design and test, against a real OpenAI-compatible API
-  (Featherless by default), HOW the AI girl chats: tone, funnel to the snap
-  share, moods, memory, anti-bot-tells. Decisions are recorded in
-  `apitest/PLAN.md`; the running log of what is done / what is next is
-  `apitest/HANDOFF.md`.
-* Rule from the owner: **do not touch the main bot for anything AI-related
-  until the apitest behaviour is approved; then design the integration
-  together (step 4 in HANDOFF.md).**
-* Secrets: `apitest/apitest.config.txt` (API key, snap username) and
-  `apitest/apitest.log` are gitignored. Never commit them.
+* `internal/bot/apichat/` — the AI chat brain: `brain.go` (director: interest
+  tiers HOT/WARM/COLD, moods, no-share / hint / direct roll, snap share deck,
+  sanitiser), `engine.go` (bot-facing `Engine`), `lab.go` (console lab),
+  `assets/` (embedded seeds for `data\api_chat\`).
+* Dashboard → Message → **API Chat** (4th mode) uses it through
+  `internal/bot/api_chat.go`. Settings `api_*` in `internal/model/ui.go`.
+* `cmd/apitest/` — the console lab (`apitest.bat` → builds
+  `go build ./cmd/apitest`, runs chat / ping / scenario / compare against the
+  real API). SAME code as the bot, so what passes here is what the bot sends.
+  Design notes: `cmd/apitest/PLAN.md`, log: `cmd/apitest/HANDOFF.md`.
+* Secrets: `cmd/apitest/apitest.config.txt` (API key, snap usernames) and
+  `apitest.log` are gitignored. Never commit them.
 * Owner communicates in Bengali/Banglish; reply in Bengali.

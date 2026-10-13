@@ -7,6 +7,8 @@ Clean source-only project for the Windows Wails desktop app and CLI worker.
 - Go module source (`app.go`, `main.go`, `cmd/`, `internal/`)
 - Wails dashboard source/assets
 - EVAChat Flow engine and embedded editable starter TXT pack
+- API Chat mode (`internal/bot/apichat`) + console lab `cmd/apitest/` — one
+  brain for the dashboard mode and the lab
 - Build script, test report, database/editing guide, and security `.gitignore`
 - Live Wall: Home counters + chat log mirrored to a full-screen sci-fi page in
   the PC browser (`docs/LIVE_WALL.md`), opened automatically on Start Bot

@@ -167,12 +167,17 @@ different lines, underage block, multi-line, reply cap, age-ask progression,
 no-repeat pools, countries + placeholders, transcript memory, proactive ask,
 no-usernames closer, adapter username rendering, custom category auto-join.
 
-## 8. AI compose layer (hybrid) — `internal/bot/eva_ai.go`
+## 8. AI chat — **API Chat** mode (`internal/bot/apichat`, `internal/bot/api_chat.go`)
 
-Optional. Dashboard → Message → EVAChat Flow → **AI reply text (hybrid)**:
-API base URL (any OpenAI-compatible `/chat/completions`), model, key
-(stored only in local `data/` settings, never in git). **Test AI** button
-sends one small request.
+Dashboard → Message → **API Chat** (4th mode). The AI writes every line; the
+built-in director decides the funnel (HOT/WARM/COLD share turn 4/6/8, 30%
+no-share chats, 60/40 hint/direct). Snap handle lines come from
+`data/api_chat/snap_share.txt` (never from the AI), hints from
+`snap_hint.txt`, persona from `persona.txt`; usernames from the dashboard
+list (one per stranger, shuffled deck). API base URL / model / key are stored
+only in local `data/` settings. Console lab with the same code:
+`cmd/apitest/apitest.bat`. EVAChat Flow stays pure TXT (the old hybrid
+"AI reply text" switch was removed from the UI; `eva_ai.go` is dormant).
 
 Division of labour:
 

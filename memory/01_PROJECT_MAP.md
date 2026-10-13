@@ -1,7 +1,7 @@
 # 01 — PROJECT MAP
 
 Repo root = `/home/user/copyhere` in the sandbox (owner's PC: any folder,
-built with `install.bat`). Go module root = main bot; `apitest/` is its own
+built with `install.bat`). Go module root = main bot; (since 2026-10-14 `apitest/` is NOT a separate module any more — see `cmd/apitest/`) previously `apitest/` was its own
 module (no deps, never imported by the bot).
 
 ## Top level
@@ -39,8 +39,8 @@ module (no deps, never imported by the bot).
 | `api/`, `browser/`, `proxy/`, `store/`, `uistore/`, `workerplan/`, `license/`, `runtimeassets/` | original project — do not touch (license is windows-only; browser rod test needs Chromium → both fail in sandbox, ignore). |
 
 ### API Chat mode (P5-R, 2026-10-14)
-- `internal/bot/apichat/brain.go` — apitest director/persona/decks port (keep
-  in sync with `apitest/main.go` when apitest logic changes).
+- `internal/bot/apichat/brain.go` — director/persona/decks (single source,
+  shared by bot + lab); `lab.go` — console lab (chat/ping/scenario/compare).
 - `internal/bot/apichat/engine.go` — `Engine` API used by the bot; `assets/`
   embedded seeds for `data\api_chat\`.
 - `internal/bot/api_chat.go` — bridge into the EVAChat plumbing in `logic.go`
@@ -49,7 +49,7 @@ module (no deps, never imported by the bot).
   `section-apichat-mode`, `app.js` `apiChatTestSettings()`/`evaAISettings()`.
 - `memory/scripts/offline_typecheck.sh` — sandbox whole-project compile check.
 
-## `apitest/` (AI funnel lab, own module)
+## `cmd/apitest/` (AI funnel lab — part of the main module since 2026-10-14; code in `internal/bot/apichat/lab.go`)
 
 | File | What |
 |------|------|

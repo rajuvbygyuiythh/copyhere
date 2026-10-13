@@ -257,3 +257,21 @@ func TestHintFile(t *testing.T) {
 		}
 	}
 }
+func TestUsernameDeck(t *testing.T) {
+	snapNames = newShareDeck([][]string{{"a"}, {"b"}, {"c"}}, "usernames")
+	defer func() { snapNames = nil }()
+	cfg := testCfg()
+	rng := newRng()
+	seen := map[string]int{}
+	for i := 0; i < 30; i++ {
+		seen[nextSnapUser(cfg, rng)]++
+	}
+	if len(seen) != 3 || seen["a"] != 10 || seen["b"] != 10 || seen["c"] != 10 {
+		t.Fatalf("deck should rotate evenly: %v", seen)
+	}
+	cfg.SnapUsernames = []string{"only"}
+	snapNames = nil
+	if nextSnapUser(cfg, rng) != "only" {
+		t.Fatal("config list fallback")
+	}
+}

@@ -1,5 +1,7 @@
-apitest — standalone API chat tester (NOT connected to the bot code)
-====================================================================
+apitest — console lab for the bot's API Chat brain (cmd\apitest, same code as the bot)
+=====================================================================================
+The director / persona / snap decks live in internal\bot\apichat and are used by BOTH
+the dashboard "API Chat" mode and this lab, so what you test here is what the bot sends.
 1. double-click apitest.bat          -> creates apitest.config.txt on first run
 2. open apitest.config.txt, paste API_KEY (and BASE_URL / MODEL if not Featherless)
 3. apitest.bat ping                  -> one raw request: shows HTTP status + JSON  (API works?)
@@ -27,4 +29,5 @@ apitest — standalone API chat tester (NOT connected to the bot code)
 
 Each reply line shows: seconds taken, tokens, persona, and a WARN if the
 output would fail the bot's rules (too long, @/link, <think> reasoning).
-Needs Go (install.bat of the main project installs it). Builds apitest.exe here.
+Needs Go (install.bat of the main project installs it). apitest.bat builds apitest.exe here
+from the project root module (go build .\cmd\apitest).

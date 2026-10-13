@@ -68,7 +68,7 @@ placeholder bg jpg into `/home/user/gotool/wallbg/` — never the owner's face).
 
 ## Zips (after every code push)
 ```
-git archive --format=zip --prefix=apitest/ -o downloads/apitest-only.zip HEAD:apitest
+(apitest-only zip REMOVED 2026-10-14 — one zip only)
 git archive --format=zip --prefix=chitchat-bot/ -o downloads/ChitChatBot-full-source.zip HEAD -- . ':!downloads'
 git add downloads && git commit -m "downloads: rebuild zips" && git push origin arena/30e64ce8-copyhere
 ```

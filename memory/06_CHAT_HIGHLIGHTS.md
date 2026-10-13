@@ -54,4 +54,7 @@ Earlier turns are summarised; from 2026-10-14 on, one entry per turn.
    Message page (3 mode cards): "dashboard-e Message page-e API option
    thakbe, total 4 ta mode — eta fix koren" → implemented P5-R with the 4th
    mode "API Chat" in the Message page (this turn).
+10. Owner (2 screenshots): "faltu, EVAChat Flow-e keno API option? ar
+    apitest-only + full source — root project ektai hobe, pls fix" → hybrid
+    block removed from EVAChat; apitest merged into main module; single zip.
 

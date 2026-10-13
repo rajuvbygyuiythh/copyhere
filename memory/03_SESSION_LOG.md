@@ -66,4 +66,11 @@ Format: date · commit(s) · what · why/notes. Older history condensed.
   4th radio IS in the pushed `index.html`/zip; cause = old exe (UI is embedded
   at compile time). Added a visible "UI build 2026-10-14 · 4 chat modes" tag
   on the Message header (`3b5d329` zip) so stale builds are obvious.
+- Owner (screenshots, angry): hybrid AI block inside EVAChat Flow = "faltu";
+  and wants apitest merged into the main project (one root). Fixed: UI block
+  removed (`evaAISettings()` now reads API Chat fields, `ai_enabled=false`),
+  `apitest/` → `internal/bot/apichat/lab.go` + `cmd/apitest/` (LabMain), data
+  files moved, `apitest.bat` builds `go build .\cmd\apitest` from root,
+  AGENTS.md §7 / docs / README updated, `apitest-only.zip` removed.
+  Verified: offline_typecheck.sh green + lab binary runs.
 

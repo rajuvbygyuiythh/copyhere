@@ -1,5 +1,5 @@
 @echo off
-REM apitest.bat — build + run the standalone API chat tester (separate from the bot code)
+REM apitest.bat — build + run the API chat lab (same brain the bot uses: internal\bot\apichat)
 REM   apitest.bat          chat with the AI persona
 REM   apitest.bat ping     one raw request (is the API / key / model OK?)
 REM   apitest.bat scenario horny|warm|cold|asl|tricky|all   scripted stranger (scenarios.txt)
@@ -25,10 +25,13 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo   [..] building apitest.exe ...
+echo   [..] building apitest.exe (from the project root module) ...
 set "CGO_ENABLED=0"
-go build -o apitest.exe . 
-if errorlevel 1 (
+pushd "%~dp0..\.."
+go build -o "cmd\apitest\apitest.exe" .\cmd\apitest
+set "BUILD_ERR=%errorlevel%"
+popd
+if not "%BUILD_ERR%"=="0" (
     echo   [ERROR] build failed - see the compiler output above.
     pause
     exit /b 1

@@ -24,7 +24,7 @@
 9. Live Wall: never bundle the owner's face/photos; he adds photos locally in
    `data\logwall\`. The demo background is a generated placeholder, not him.
 10. Whenever the owner pastes real apitest output showing a bug → fix it.
-11. Zips are delivered both as full project and apitest-only.
+11. ~~Zips are delivered both as full project and apitest-only.~~ REVERSED 2026-10-14: ONE zip only (full project; apitest is inside it under `cmd/apitest`).
 
 ## B. Product decisions (with reasons)
 
@@ -79,3 +79,11 @@
   phone layout; backgrounds from `data\logwall\`.
 
 ## C. Pending decisions (see 00_RESUME_BRIEF.md "Open decisions")
+
+## 2026-10-14 — one root project, API only in API Chat
+- Owner: "root project ektai hobe" → apitest merged into the main module
+  (`cmd/apitest` + `internal/bot/apichat/lab.go`). Never ship a separate
+  apitest zip/module again; one zip only.
+- Owner: "EVAChat Flow-e API option keno?" → no API/AI settings anywhere
+  except the API Chat panel. EVAChat Flow = TXT only.
+

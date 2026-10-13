@@ -15,6 +15,15 @@ API and pastes output; agent fixes bugs from that output.
 
 ## Last thing done (most recent turn first)
 
+00. **Owner angry about two things → both fixed:** (a) the old hybrid "AI
+    reply text" block inside EVAChat Flow is REMOVED from the UI (API
+    settings exist only in the API Chat panel; EVAChat = pure TXT; `eva_ai.go`
+    dormant, `ai_enabled` always false). (b) **ONE root project**: `apitest/`
+    (own module) is gone; its CLI is `internal/bot/apichat/lab.go` +
+    `cmd/apitest/` (thin main + data files + bat). Only ONE zip now
+    (`downloads/ChitChatBot-full-source.zip`); `apitest-only.zip` deleted.
+    Do NOT recreate a separate apitest module or zip.
+
 0. Owner said the API mode is not visible → it IS in the pushed UI; he was
    on an old exe. Added "UI build 2026-10-14 · 4 chat modes" tag on the
    Message header. If he still reports 3 modes: he must re-download the zip
@@ -78,7 +87,6 @@ API and pastes output; agent fixes bugs from that output.
 
 ## Download links the owner uses
 
-- apitest only: `https://github.com/rajuvbygyuiythh/copyhere/raw/arena/30e64ce8-copyhere/downloads/apitest-only.zip`
 - full source: `https://github.com/rajuvbygyuiythh/copyhere/raw/arena/30e64ce8-copyhere/downloads/ChitChatBot-full-source.zip`
 - branch archive (always latest): `https://github.com/rajuvbygyuiythh/copyhere/archive/refs/heads/arena/30e64ce8-copyhere.zip`
 - Rebuild zips after every code push (commands in 05). `downloads/` is
