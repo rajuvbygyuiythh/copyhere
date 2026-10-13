@@ -26,7 +26,7 @@ Tier: **HOT** = any horny hit or score ≥ 6 · **WARM** = score ≥ 3 · **COLD
 | WARM | reply 5 | **reply 6** | `SHARE_WARM=6` |
 | COLD | reply 7 | **reply 8** | `SHARE_COLD=8` |
 
-* stranger asks for snap/insta/tg himself → share immediately
+* stranger asks for snap/insta/tg himself → share immediately (if it is his very first message: "lol slow down, who even r u" + asl, then share on reply 2)
 * "yes" after the ask → share immediately
 * "no" after the ask → one teasing nudge → second "no" → polite bye, END
 * age under 18 → fixed line "oh ur too young for me lol. bye", END, never shares

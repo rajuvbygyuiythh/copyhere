@@ -1,6 +1,6 @@
 # apitest HANDOFF — read this first after a context loss (≈2 min)
 
-Last update: 2026-10-13 · branch `arena/30e64ce8-copyhere` · repo
+Last update: 2026-10-13 (debug pass: false bye on "later/brb", insult/money only when directed, name parse, "snap?" on msg 1 → tease then share on reply 2, onlyQuestion retry fix) · branch `arena/30e64ce8-copyhere` · repo
 `rajuvbygyuiythh/copyhere` · everything below is committed.
 
 ## 0. One-paragraph picture
@@ -73,7 +73,8 @@ non-reasoning model, dashboard toggle. Telegram fallback for "no snap" later.
 
 ```
 export GOROOT=... PATH=.../go/bin:$PATH GOPROXY=off GOTOOLCHAIN=local
-cd apitest && gofmt -l . && go vet . && CGO_ENABLED=0 go build -o /tmp/apitest_run/apitest .
+cd apitest && gofmt -l . && go vet . && go test . && CGO_ENABLED=0 go build -o /tmp/apitest_run/apitest .
+# go test . = edge_test.go: signal regexes (bye/insult/money/hardQ/non-english/name/place) + onlyQuestion
 # mock: a tiny python http server on 127.0.0.1:8091 answering /v1/chat/completions
 # config: BASE_URL=http://127.0.0.1:8091/v1 MODEL=x API_KEY=k SNAP_USERNAME=snapqueen
 cd /tmp/apitest_run && ./apitest scenario all

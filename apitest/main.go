@@ -100,7 +100,7 @@ var (
 		regexp.MustCompile(`(?i)\bi'?m (\d{2})\b`),
 		regexp.MustCompile(`(?i)\b(\d{2}) ?(yo|years? old|yrs)\b`),
 	}
-	byeRe         = regexp.MustCompile(`(?i)\b(bye|gtg|g2g|brb|ttyl|cya|gotta go|leaving|later)\b`)
+	byeRe         = regexp.MustCompile(`(?i)(\b(bye+|goodbye|gtg|g2g|ttyl|cya|gotta go|got to go|have to go|im out|i\'m out|peace out|night night|gn\b|good ?night)\b|^(later|laters|nite|gn)\W*$)`)
 	questionRe    = regexp.MustCompile(`(?i)\b(wyd|hbu|wbu|how|what|where|why|when|who|r u|are u|do u|u got|got any|asl|age)\b`)
 	botQRe        = regexp.MustCompile(`(?i)(r u (a )?(bot|real|fake|ai|human)|are (u|you) (a )?(bot|real|fake|ai|human)|\bbot\b|\bfake\b|\bscam|\bai\b|\breal\?)`)
 	picAskRe      = regexp.MustCompile(`(?i)\b(send|show|got|have|any|ur|your)\b.*\b(pics?|photo|selfie|face)\b|\b(pics?|photo|selfie)\?`)
@@ -109,19 +109,19 @@ var (
 	lowEffortRe   = regexp.MustCompile(`(?i)^(k|kk|ok|okay|oh|ohh|lol|lmao|haha+|hmm+|cool|nice|yea+h*|ya|yep|nah|idk|same|true|fr|wow|good|fine|nothing|nm|u\??|wbu\??|hbu\??|and\??|so\??|\W*)$`)
 	hesitantRe    = regexp.MustCompile(`(?i)\b(idk|maybe|why|what for|hmm+|depends|not sure|later|dunno|we'?ll see|for what)\b`)
 	aslAskRe      = regexp.MustCompile(`(?i)(\basl\b|\bage\b|how old|\bold r u|\bold are (u|you)|\bm or f\b|\bf or m\b|\bgender\b|r u a (girl|guy|boy|female|male)|are (u|you) a (girl|guy|boy|female|male)|\bgirl or\b|^(u|you|wbu|hbu|and u|n u)\s*\??$)`)
-	placeRe       = regexp.MustCompile(`(?i)\b(?:from|in|live in|living in|based in)\s+(?:the\s+)?([a-z]{3,}(?:\s[a-z]{3,})?)\b|\b([a-z]{3,}(?:\s[a-z]{3,})?)\s+here\b`)
+	placeRe       = regexp.MustCompile(`(?i)\b(?:from|live in|living in|based in|i\'?m in|im in)\s+(?:the\s+)?([a-z]{3,}(?:\s[a-z]{3,})?)\b`)
 	placeStop     = regexp.MustCompile(`(?i)^(the|here|there|bed|home|class|school|work|college|uni|my|a|an|this|that|love|mood|fact|case|general|front|time|real|life|town|it|and|but|lol|rn|now|bored|chat)$`)
 	knownPlaces   = regexp.MustCompile(`(?i)\b(usa|us|america|uk|england|london|canada|australia|germany|france|italy|spain|netherlands|sweden|norway|poland|ireland|scotland|mexico|brazil|india|texas|california|cali|florida|new york|nyc|ny|la|chicago|ohio|georgia|arizona|nevada|vegas|seattle|boston|michigan|colorado|utah|oregon|jersey|virginia|carolina|tennessee|kentucky|alabama|louisiana|miami|dallas|houston|austin|atlanta|philly|detroit|toronto|vancouver|sydney|melbourne|berlin|paris|amsterdam|dubai|pakistan|bangladesh|nigeria|philippines|indonesia|turkey|egypt|kenya|south africa|russia|ukraine|romania|greece|portugal|belgium|denmark|finland|austria|switzerland|czech|hungary|serbia|croatia)\b`)
-	nameRe        = regexp.MustCompile(`(?i)\b(?:i'?m|im|my name is|name's|names|call me|its|it's)\s+([a-z]{3,12})\b`)
-	nameStop      = regexp.MustCompile(`(?i)^(bored|horny|good|fine|home|here|alone|tired|from|just|not|also|single|new|down|kinda|lowkey|sorry|okay|chilling|chillin|lol|male|female|guy|girl|real|sure|done|back|still|only|like|about|gonna|going|trying|looking|texas|usa|cool|busy|lost|sad|happy|high|drunk|sleepy|hungry|the|that|this|what|wondering|curious|asking|serious|joking|kidding|saying|talking|thinking|waiting|lying|laying|sitting|doing|dying|dead)$`)
+	nameRe        = regexp.MustCompile(`(?i)\b(?:i\'?m|im|my name is|my name\'?s|name is|names|call me)\s+([a-z]{3,12})\b`)
+	nameStop      = regexp.MustCompile(`(?i)^(bored|horny|good|fine|home|here|alone|tired|from|just|not|also|single|new|down|kinda|lowkey|sorry|okay|chilling|chillin|lol|male|female|guy|girl|real|sure|done|back|still|only|like|about|gonna|going|trying|looking|cool|busy|lost|sad|happy|high|drunk|sleepy|hungry|the|that|this|what|wondering|curious|asking|serious|joking|kidding|saying|talking|thinking|waiting|lying|laying|sitting|doing|dying|dead|cold|hot|late|nice|weird|funny|crazy|wild|dark|quiet|boring|lit|whatever|nothing|true|fake|over|early|ready|free|stuck|outside|inside|awake|asleep|sick|bad|mad|straight|bi|gay|taken|married|old|young|tall|short|big|small|hard|soft|wet|naked|close|near|far|online|offline|texting|watching|working|studying|driving|walking|eating|drinking|smoking|gaming|listening|scrolling|interested|intrested|bored|lonely|shy|honest|serious|legit|actually|literally|really|pretty|very|super|so|too|already|always|never|kind|sort|type|way|more|less|better|worse|sure|def|probably|maybe|guess|think|feel|mean|means|meant|supposed|about|around|almost|half|full|all|gone|off|out|in|on|up|at|by|for|to|with|and|but|or|if|as|an|a)$`)
 	doingRe       = regexp.MustCompile(`(?i)\b(in bed|laying|lying|chilling|chillin|watching|gaming|playing|working|studying|eating|cooking|driving|at work|at home|at school|at the gym|gym|smoking|drinking|netflix|youtube|tiktok|cant sleep|can't sleep|just woke|about to sleep|nothing much|nothin|nm\b)`)
 	bareMaleRe    = regexp.MustCompile(`(?i)\b(i'?m|im) (a )?(guy|male|boy|man|dude)\b|^(m|male|guy|boy|dude)\W*$`)
 	bareFemaleRe  = regexp.MustCompile(`(?i)\b(i'?m|im) (a )?(girl|female|woman)\b|^(f|female|girl)\W*$`)
 	bareAgeRe     = regexp.MustCompile(`(?i)^(?:im |i'm |i am |age )?(\d{2})\W*$`)
 	nameAskRe     = regexp.MustCompile(`(?i)(ur name|your name|whats ur name|what's your name|name\?|who r u|who are u|who are you|what do i call u|call u\?|ur name\?|name tho)`)
-	insultRe      = regexp.MustCompile(`(?i)\b(bitch|slut|whore|ugly|stupid|dumb bitch|fuck you|fuck off|fuck u|stfu|kys|hoe|fat ass|retard\w*|loser|idiot|shut up|pathetic|ur fake|ur a fake|catfish)\b`)
-	moneyRe       = regexp.MustCompile(`(?i)\b(money|pay|paid|paypal|cashapp|cash app|venmo|zelle|onlyfans|only fans|\bof\b link|premium|selling|sell|price|how much|\$ ?\d|buy|subscribe|sugar daddy|sugar baby|gift card|crypto|bitcoin|invest)\b`)
-	hardQRe       = regexp.MustCompile(`(?i)\b(calculate|math|capital of|president|politic\w*|election|code|python|javascript|programming|explain|meaning of|define|definition|history of|religion|philosophy|translate|what is \d|\d+ ?[\+\-\*/x] ?\d+|who won|square root|quantum|economy|stock market|write (me )?a (poem|story|essay))\b`)
+	insultRe      = regexp.MustCompile(`(?i)(\b(bitch|slut|whore|hoe|stfu|kys|retard\w*|cunt|fuck (you|u|off))\b|\b(u|you|ur|you\'?re|youre|your|she\'?s)\b[^.?!]{0,20}\b(ugly|stupid|dumb|fat|fake|pathetic|loser|idiot|boring af|trash|disgusting|catfish|a bot bitch)\b|\b(ugly|stupid|dumb|fat|fake|pathetic|loser|idiot|trash|catfish)\b[^.?!]{0,12}\b(bitch|girl|hoe|ass|whore)\b)`)
+	moneyRe       = regexp.MustCompile(`(?i)(\b(onlyfans|only fans|of link|of page|paypal|cashapp|cash app|venmo|zelle|sugar (daddy|baby|mommy)|gift ?cards?|crypto|bitcoin|btc|usdt|premium (snap|content)|my (rates|prices|menu))\b|\b(pay|paying|paid|send|give|got|need|want|for|make|earn)\b[^.?!]{0,12}\b(money|cash|dollars?|bucks)\b|\$ ?\d|\b(i'?ll|ill|i will|i can|can|will|wanna|would|gonna) pay (u|you|for)\b|\bpay (u|you) (for|to)\b|\b(how much|what'?s? (ur|your) price|do (u|you) charge|u charge|sell(ing)? (pics|nudes|content|vids|videos)|buy (ur|your) (pics|nudes|content))\b)`)
+	hardQRe       = regexp.MustCompile(`(?i)\b(calculate|solve|math problem|capital of|president of|prime minister|politic\w*|election|write (me )?(some |a )?(code|script|poem|story|essay|program)|in python|in javascript|programming|explain (how|why|what|the|quantum|relativity|crypto)|meaning of life|define [a-z]+|definition of|history of|religion|philosophy|translate (this|to|into)|what is \d|\d+ ?(times|plus|minus|divided by|x|\+|-|\*|/) ?\d+|who won the|square root|quantum|stock market|gdp|theorem|equation|chemistry|physics)\b`)
 	noSnapRe      = regexp.MustCompile(`(?i)(don'?t have (a )?snap|dont have (a )?sc|no snap|not on snap|deleted (my )?snap|snap got banned|don'?t use snap|i don'?t have (it|one|that)|dont have (it|one|that)|no sc\b|got no snap)`)
 	englishWords  = map[string]bool{}
 	nonLatinRe    = regexp.MustCompile(`[\p{Cyrillic}\p{Arabic}\p{Bengali}\p{Devanagari}\p{Han}\p{Hiragana}\p{Katakana}\p{Hangul}\p{Thai}\p{Hebrew}\p{Greek}]`)
@@ -187,40 +187,41 @@ type director struct {
 	lastDouble int
 	coldStreak int
 	// per-message signals
-	userAskedSnap bool
-	userRefused   bool
-	userHesitant  bool
-	userQuestion  bool
-	userHorny     bool
-	userFlirty    bool
-	userBye       bool
-	userBotQ      bool
-	userPicAsk    bool
-	userLaugh     bool
-	userLonely    bool
-	userLowEffort bool
-	userShared    bool // told something about themselves
-	userAdded     bool // after the share: "added u"
-	userAslAsk    bool // "asl?", "how old r u", "m or f", "u?"
-	userGaveAsl   bool // this message contained their age/gender
-	toldAsl       bool // we already sent our own "f 21"
-	userNameAsk   bool
-	toldName      bool
-	userInsult    bool
-	userMoney     bool
-	moneyHits     int
-	userHardQ     bool
-	userNoSnap    bool
-	userNonEng    bool
-	nonEngHits    int
-	userRepeat    bool
-	lastUserText  string
-	hookPlanted   bool
-	noQuestionAt  int // last turn that was a statement-only reply
-	rng           *rand.Rand
-	userPlace     string
-	userName      string
-	userDoing     string
+	userAskedSnap  bool
+	userRefused    bool
+	userHesitant   bool
+	userQuestion   bool
+	userHorny      bool
+	userFlirty     bool
+	userBye        bool
+	userBotQ       bool
+	userPicAsk     bool
+	userLaugh      bool
+	userLonely     bool
+	userLowEffort  bool
+	userShared     bool // told something about themselves
+	userAdded      bool // after the share: "added u"
+	userAslAsk     bool // "asl?", "how old r u", "m or f", "u?"
+	userGaveAsl    bool // this message contained their age/gender
+	toldAsl        bool // we already sent our own "f 21"
+	userNameAsk    bool
+	toldName       bool
+	userInsult     bool
+	userMoney      bool
+	moneyHits      int
+	userHardQ      bool
+	userNoSnap     bool
+	userNonEng     bool
+	nonEngHits     int
+	userRepeat     bool
+	lastUserText   string
+	hookPlanted    bool
+	wantsSnapEarly bool // asked for snap on message 1: share on reply 2 instead
+	noQuestionAt   int  // last turn that was a statement-only reply
+	rng            *rand.Rand
+	userPlace      string
+	userName       string
+	userDoing      string
 }
 
 type plan struct {
@@ -330,9 +331,6 @@ func (d *director) observe(text string) {
 			d.userPlace = m
 		} else if m := placeRe.FindStringSubmatch(low); m != nil {
 			cand := m[1]
-			if cand == "" {
-				cand = m[2]
-			}
 			first := strings.Fields(cand)
 			if len(first) > 0 && !placeStop.MatchString(first[0]) && !d.userHorny && !lowEffortRe.MatchString(first[0]) {
 				d.userPlace = cand
@@ -340,7 +338,7 @@ func (d *director) observe(text string) {
 		}
 	}
 	if d.userName == "" {
-		if m := nameRe.FindStringSubmatch(low); m != nil && !nameStop.MatchString(m[1]) && !knownPlaces.MatchString(m[1]) && !doingRe.MatchString(m[1]) {
+		if m := nameRe.FindStringSubmatch(low); m != nil && !nameStop.MatchString(m[1]) && !englishWords[m[1]] && !knownPlaces.MatchString(m[1]) && !doingRe.MatchString(m[1]) && !hornyRe.MatchString(m[1]) && !flirtyRe.MatchString(m[1]) {
 			if _, _, isAsl := genderAge(m[1]); !isAsl {
 				d.userName = m[1]
 			}
@@ -545,7 +543,11 @@ func (d *director) plan(cfg config, turn int, userText string) plan {
 	}
 
 	// user asks for the snap / pic / says yes after the ask -> share now ---
-	if d.userAskedSnap || (d.askedSnap && (yesRe.MatchString(strings.ToLower(userText)) || d.userPicAsk)) {
+	if d.userAskedSnap && turn == 1 {
+		d.wantsSnapEarly = true
+		return plan{Mood: "teasing", Instruction: "their very first message asks for your snap: tease them for being fast ('lol slow down, who even r u') and ask their asl. one line, NO username.", Why: "snap asked on msg 1 -> slow down"}
+	}
+	if d.userAskedSnap || d.wantsSnapEarly || (d.askedSnap && (yesRe.MatchString(strings.ToLower(userText)) || d.userPicAsk)) {
 		return d.sharePlan(turn, p.Mood, "they want your snap: say something short and playful like 'ok fine' or 'took u long enough'. one line, NO username, no question.", "user wants it")
 	}
 	if d.hesitated && !d.userRefused {
@@ -722,7 +724,7 @@ func (d *director) status(cfg config, turn int) string {
 func replyProblem(lines []string, d *director, userText string, history []message) string {
 	allQuestions := true
 	for _, l := range lines {
-		if !strings.HasSuffix(strings.TrimSpace(l), "?") {
+		if !onlyQuestion(l) {
 			allQuestions = false
 		}
 	}
@@ -885,6 +887,13 @@ func newRunner(cfg config, personaTemplate string) *runner {
 	return r
 }
 
+func (r *runner) close() {
+	if r.logf != nil {
+		r.logf.Close()
+		r.logf = nil
+	}
+}
+
 func (r *runner) logLine(format string, a ...any) {
 	if r.logf != nil {
 		fmt.Fprintf(r.logf, format+"\n", a...)
@@ -1022,6 +1031,7 @@ func (r *runner) step(text string) {
 
 func chatLoop(cfg config, personaTemplate string) {
 	r := newRunner(cfg, personaTemplate)
+	defer r.close()
 	defer r.summary()
 	printBanner(cfg, r.s)
 
@@ -1111,6 +1121,7 @@ func scenarioRun(cfg config, personaTemplate string, name string) {
 		}
 	}
 	r.summary()
+	r.close()
 	fmt.Println("\n(full transcript appended to apitest.log — send that file for review)")
 }
 
@@ -1160,6 +1171,7 @@ func compareRun(cfg config, personaTemplate string, name string) {
 			}
 		}
 		r.summary()
+		r.close()
 		rows = append(rows, row{m, r.st, errs, r.s.Director.status(c, r.s.Turns+1)})
 	}
 	fmt.Println("\n================ compare: scenario " + name + " ================")
@@ -1439,6 +1451,24 @@ func sanitizeLines(raw string, double bool) ([]string, string) {
 		}
 	}
 	return lines, strings.Join(warns, "; ")
+}
+
+// onlyQuestion: the line is nothing but a question (starts with a question word, ends with ?).
+// "nothing much, u?" is an answer + question -> false. "what about u?" -> true.
+func onlyQuestion(l string) bool {
+	l = strings.TrimSpace(strings.ToLower(l))
+	if !strings.HasSuffix(l, "?") {
+		return false
+	}
+	f := strings.Fields(strings.Trim(l, "?"))
+	if len(f) == 0 {
+		return true
+	}
+	switch strings.Trim(f[0], ",.") {
+	case "what", "how", "where", "why", "who", "when", "which", "wyd", "hbu", "wbu", "r", "are", "do", "did", "does", "u", "you", "can", "could", "would", "will", "is", "got", "any", "so", "and", "ur", "your", "whats", "what's", "hows", "how's", "wanna", "want", "ever", "have", "wya", "asl":
+		return len(f) <= 7
+	}
+	return false
 }
 
 // parrotGram returns a 4-word run of the stranger's message that appears verbatim in the reply.
