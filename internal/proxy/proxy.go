@@ -13,6 +13,23 @@ type Entry struct {
 	Port     string
 	Username string
 	Password string
+	// Timezone (optional) IANA zone the browser window behind this proxy
+	// should pretend to be in, e.g. "America/Chicago". Written in the proxy
+	// list as a suffix: `ip:port:user:pass|tz=America/Chicago` (or ` tz=`).
+	Timezone string
+}
+
+// splitTimezoneSuffix removes a trailing "|tz=Zone" / " tz=Zone" from a
+// proxy line and returns the zone.
+func splitTimezoneSuffix(line string) (string, string) {
+	line = strings.TrimSpace(line)
+	for _, sep := range []string{"|tz=", " tz=", "|timezone=", " timezone="} {
+		if idx := strings.LastIndex(strings.ToLower(line), sep); idx >= 0 {
+			zone := strings.TrimSpace(line[idx+len(sep):])
+			return strings.TrimSpace(line[:idx]), zone
+		}
+	}
+	return line, ""
 }
 
 type Rotator struct {
@@ -42,6 +59,16 @@ func ParseList(raw string) ([]Entry, error) {
 }
 
 func ParseLine(line string) (Entry, error) {
+	line, zone := splitTimezoneSuffix(line)
+	entry, err := parseProxyAddress(line)
+	if err != nil {
+		return Entry{}, err
+	}
+	entry.Timezone = zone
+	return entry, nil
+}
+
+func parseProxyAddress(line string) (Entry, error) {
 	line = strings.TrimSpace(line)
 	if strings.Contains(line, "://") {
 		parsed, err := url.Parse(line)
@@ -167,7 +194,11 @@ func (e Entry) SchemeOrDefault() string {
 }
 
 func (e Entry) Label() string {
-	return e.SchemeOrDefault() + "://" + e.Address()
+	label := e.SchemeOrDefault() + "://" + e.Address()
+	if e.Timezone != "" {
+		label += " (tz " + e.Timezone + ")"
+	}
+	return label
 }
 
 func normalizeScheme(value string) (string, error) {

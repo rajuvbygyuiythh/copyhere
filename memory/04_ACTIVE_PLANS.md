@@ -228,7 +228,17 @@ style, TXT handle appended); typing-delay review; registry contention
 "chat list ato long → short": (a) compact apitest console status
 (`COMPACT=1`), or (b) earlier share thresholds. Owner has not answered.
 
-## P9 — Live Browser v2: never-close + stealth + lightweight (2026-10-14, PLAN, awaiting owner answers)
+## P9 — Live Browser v2: never-close + stealth + lightweight (2026-10-14) — A1/A2/B1-B4/C1 SHIPPED, C2 next
+
+Owner answers: close happened after **Run Fresh Browsers** (confirmed root
+cause: that flow always closed); timezone **per proxy** (`|tz=` suffix,
+default America/New_York); lightweight: **both** (flags now, shared Chrome
+later); DevTools captures later. Shipped: fresh-login handover
+(`Config.AttachedBackend`, `app.go runLiveHandoverWorker`, `liveWorkers`
+registry, Stop ends them, Start skips them), close reasons, stealth flags +
+CDP tz/locale + init script + `[browser] check:` line, low-memory flags,
+`proxy.Entry.Timezone`, `BrowserSettings.Timezone` + UI field. Remaining:
+C2 shared-Chrome contexts backend; A3 process exit code watchdog.
 
 Owner report after P8: "after account login the browser auto-closes again";
 wants: window NEVER closes (until Stop / he closes it), truly watchable live

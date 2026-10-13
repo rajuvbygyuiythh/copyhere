@@ -37,6 +37,10 @@ func (s sessionBackendStub) SetCookies(context.Context, []model.Cookie) error {
 	return nil
 }
 
+func (s sessionBackendStub) Inspect(context.Context) (Inspection, error) {
+	return Inspection{}, nil
+}
+
 func (s sessionBackendStub) Close() error {
 	return nil
 }

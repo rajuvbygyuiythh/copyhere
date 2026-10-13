@@ -73,3 +73,51 @@ const fetchFunction = `async (request) => {
     };
   }
 }`
+
+// stealthInitScript runs before any page script (Page.addScriptToEvaluateOnNewDocument).
+// Minimal and consistent on purpose: only the markers that scream "automation".
+const stealthInitScript = `(() => {
+  try {
+    if (navigator.webdriver) {
+      Object.defineProperty(Object.getPrototypeOf(navigator), "webdriver", { get: () => false, configurable: true });
+    }
+  } catch (e) {}
+  try {
+    if (!window.chrome) { window.chrome = {}; }
+    if (!window.chrome.runtime) { window.chrome.runtime = { connect: () => {}, sendMessage: () => {} }; }
+  } catch (e) {}
+  try {
+    if (!navigator.languages || navigator.languages.length === 0) {
+      Object.defineProperty(navigator, "languages", { get: () => ["en-US", "en"], configurable: true });
+    }
+  } catch (e) {}
+  try {
+    if (navigator.plugins && navigator.plugins.length === 0) {
+      const fake = [{ name: "PDF Viewer" }, { name: "Chrome PDF Viewer" }, { name: "Chromium PDF Viewer" }];
+      Object.defineProperty(navigator, "plugins", { get: () => fake, configurable: true });
+    }
+  } catch (e) {}
+  try {
+    const originalQuery = window.navigator.permissions && window.navigator.permissions.query;
+    if (originalQuery) {
+      window.navigator.permissions.query = (parameters) =>
+        parameters && parameters.name === "notifications"
+          ? Promise.resolve({ state: Notification.permission, onchange: null })
+          : originalQuery.call(window.navigator.permissions, parameters);
+    }
+  } catch (e) {}
+})();`
+
+// inspectFunction returns what the page's JavaScript sees.
+const inspectFunction = `() => ({
+  userAgent: navigator.userAgent,
+  platform: navigator.platform,
+  webdriver: !!navigator.webdriver,
+  timezone: (Intl.DateTimeFormat().resolvedOptions() || {}).timeZone || "",
+  languages: Array.from(navigator.languages || []),
+  hardwareConcurrency: navigator.hardwareConcurrency || 0,
+  deviceMemory: navigator.deviceMemory || 0,
+  screen: String(screen.width) + "x" + String(screen.height),
+  plugins: (navigator.plugins || []).length,
+  chromeRuntime: !!(window.chrome && window.chrome.runtime),
+})`

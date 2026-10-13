@@ -48,3 +48,33 @@ Code: `internal/bot/browser_mode.go` (window lifecycle, executor),
 (`Navigate`, `SetCookies`), `internal/bot/run.go` (branches on
 `Config.BrowserMode`), `app.go` (setting → config), Browser page in
 `cmd/chitchatui/frontend/dist/index.html` + `app.js`.
+
+## Live Browser v2 (2026-10-14)
+
+**Run Fresh Browsers follows the run mode.** Classic: fresh window → login →
+`login_info_<id>.json` saved → window closes (as before). Browser mode: the
+same window **stays open** and a live worker starts chatting in it at once
+(`[acct] Live window worker started`); Stop saves the session and closes it.
+A later Start skips accounts that are already chatting in a live window.
+
+**Every close is explained**: `[browser] Closing window — reason: Stop pressed
+| window closed or unreachable | account banned | worker error: …`.
+
+**Stealth (all windows, all modes, always on)**
+- launch flags: `--enable-automation` removed (no `navigator.webdriver`, no
+  "controlled by automated software" bar), `--disable-blink-features=AutomationControlled`,
+  `--lang=en-US`, realistic window size per profile, WebRTC
+  `disable_non_proxied_udp` (no local/VPN IP leak behind a proxy);
+- CDP emulation per page: timezone (Browser page "Browser timezone",
+  default `America/New_York`; proxy line suffix `|tz=America/Chicago`
+  overrides per window) + locale `en-US`;
+- init script before any page script: webdriver=false, chrome.runtime stub,
+  languages/plugins non-empty, notifications permission consistent. No
+  canvas/WebGL spoofing on purpose (inconsistent spoofs are a stronger signal).
+- after login: `[browser] check: webdriver=false timezone=… languages=…
+  platform=… screen=… -> OK|WARN …` — what the site's JavaScript sees.
+
+**Low memory (always on)**: `renderer-process-limit=2`, no extensions /
+component updates / background mode / speech API / pings, JS heap cap 256 MB
+→ roughly 150–250 MB per window instead of 300–500. A shared-Chrome
+per-account-context backend (~70–120 MB/account) is the next phase.

@@ -150,6 +150,46 @@ func isBrowserGoneError(err error) bool {
 	return false
 }
 
+// browserWindowOptions builds the launch options used by every window the
+// bot opens (classic login capture, browser mode, fresh login): stealth and
+// low-memory flags always on, timezone from the proxy line or the setting.
+func browserWindowOptions(cfg Config, userDataDir string, selectedProxy *proxy.Entry) browser.Options {
+	zone := strings.TrimSpace(cfg.BrowserTimezone)
+	if selectedProxy != nil && strings.TrimSpace(selectedProxy.Timezone) != "" {
+		zone = strings.TrimSpace(selectedProxy.Timezone)
+	}
+	return browser.Options{
+		StartURL:    cfg.AppURL,
+		UserDataDir: userDataDir,
+		Headless:    cfg.Headless,
+		Proxy:       selectedProxy,
+		Timezone:    zone,
+		Locale:      "en-US",
+		Stealth:     true,
+		LowMemory:   true,
+	}
+}
+
+// logBrowserCheck prints what the site can see from the window.
+func logBrowserCheck(ctx context.Context, cfg Config, backend browser.Backend, wantZone string) {
+	probeCtx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+	info, err := backend.Inspect(probeCtx)
+	if err != nil {
+		logf(cfg, "[browser] check: could not inspect the page (%v)\n", err)
+		return
+	}
+	verdict := "OK"
+	if info.Webdriver {
+		verdict = "WARN navigator.webdriver=true"
+	} else if wantZone != "" && info.Timezone != wantZone {
+		verdict = fmt.Sprintf("WARN timezone is %s, wanted %s", info.Timezone, wantZone)
+	}
+	logf(cfg, "[browser] check: webdriver=%v timezone=%s languages=%s platform=%s screen=%s cores=%d mem=%vGB plugins=%d chrome=%v -> %s\n",
+		info.Webdriver, info.Timezone, strings.Join(info.Languages, ","), info.Platform, info.Screen,
+		info.HardwareConcurrency, info.DeviceMemory, info.Plugins, info.ChromeRuntime, verdict)
+}
+
 // browserSession is the open window of one worker.
 type browserSession struct {
 	backend  browser.Backend
@@ -157,6 +197,7 @@ type browserSession struct {
 	p        paths
 	proxy    *proxy.Entry
 	release  func()
+	zone     string
 	fetchMu  sync.Mutex
 	relogin  atomic.Bool  // true while waiting for a new login in the window
 	failures atomic.Int32 // consecutive in-page fetch failures
@@ -193,6 +234,9 @@ func acquireWindowSlot(ctx context.Context, cfg Config, key string) (func(), err
 // context on purpose: Stop cancels the worker context, and we still need the
 // window alive for a moment to save the session before closing it.
 func openBrowserSession(ctx context.Context, cfg Config, p paths, saved model.LoginInfo) (*browserSession, model.LoginInfo, error) {
+	if cfg.AttachedBackend != nil {
+		return adoptBrowserSession(ctx, cfg, p, saved)
+	}
 	backend, err := browser.New(cfg.Backend)
 	if err != nil {
 		return nil, model.LoginInfo{}, err
@@ -222,17 +266,13 @@ func openBrowserSession(ctx context.Context, cfg Config, p paths, saved model.Lo
 	if cfg.Headless {
 		mode = "headless"
 	}
-	logf(cfg, "[browser] Browser mode on: opening %s %s window for %q (profile data: %s). It stays open until you press Stop.\n", mode, cfg.Backend, cfg.Profile, userDataDir)
+	opts := browserWindowOptions(cfg, userDataDir, selectedProxy)
+	logf(cfg, "[browser] Browser mode on: opening %s %s window for %q (profile data: %s, timezone %s). It stays open until you press Stop.\n", mode, cfg.Backend, cfg.Profile, userDataDir, zoneOrSystem(opts.Timezone))
 
-	if err := backend.Start(context.Background(), browser.Options{
-		StartURL:    cfg.AppURL,
-		UserDataDir: userDataDir,
-		Headless:    cfg.Headless,
-		Proxy:       selectedProxy,
-	}); err != nil {
+	if err := backend.Start(context.Background(), opts); err != nil {
 		return fail(fmt.Errorf("browser mode: could not start the browser: %w", err))
 	}
-	session := &browserSession{backend: backend, cfg: cfg, p: p, proxy: selectedProxy, release: release}
+	session := &browserSession{backend: backend, cfg: cfg, p: p, proxy: selectedProxy, release: release, zone: opts.Timezone}
 
 	// Already logged in inside the browser profile? Then nothing to inject.
 	authenticated := false
@@ -255,11 +295,44 @@ func openBrowserSession(ctx context.Context, cfg Config, p paths, saved model.Lo
 
 	login, err := waitForLogin(ctx, backend, cfg, p)
 	if err != nil {
+		logf(cfg, "[browser] Closing window — reason: login not completed (%v).\n", err)
 		_ = backend.Close()
 		return fail(err)
 	}
 	logf(cfg, "[browser] Logged in as %s. Chatting through the browser window from now on.\n", login.UserID)
+	logBrowserCheck(ctx, cfg, backend, opts.Timezone)
 	return session, login, nil
+}
+
+// adoptBrowserSession takes over a window that is already open and logged
+// in (Run Fresh Browsers in Browser mode): no launch, no cookie injection,
+// just verify the login and start chatting in it.
+func adoptBrowserSession(ctx context.Context, cfg Config, p paths, saved model.LoginInfo) (*browserSession, model.LoginInfo, error) {
+	backend := cfg.AttachedBackend
+	release, err := acquireWindowSlot(ctx, cfg, "attached:"+p.LoginInfo)
+	if err != nil {
+		return nil, model.LoginInfo{}, err
+	}
+	logf(cfg, "[browser] Adopting the already open %s window for %q (fresh login handover). It stays open until you press Stop.\n", cfg.Backend, cfg.Profile)
+	session := &browserSession{backend: backend, cfg: cfg, p: p, release: release, zone: cfg.BrowserTimezone}
+	login, err := waitForLogin(ctx, backend, cfg, p)
+	if err != nil {
+		release()
+		return nil, model.LoginInfo{}, err
+	}
+	if login.UserID == "" {
+		login.UserID = saved.UserID
+	}
+	logf(cfg, "[browser] Logged in as %s. Chatting through the browser window from now on.\n", login.UserID)
+	logBrowserCheck(ctx, cfg, backend, cfg.BrowserTimezone)
+	return session, login, nil
+}
+
+func zoneOrSystem(zone string) string {
+	if strings.TrimSpace(zone) == "" {
+		return "system"
+	}
+	return zone
 }
 
 // client returns the api client that runs inside the window.
@@ -295,12 +368,13 @@ func (s *browserSession) reloginInWindow(ctx context.Context) (model.LoginInfo, 
 // saveAndClose captures the live session one last time (fresh cookies /
 // storage), writes login_info.json and closes the window. It uses its own
 // short timeout because the worker context is usually already cancelled.
-func (s *browserSession) saveAndClose(previous model.LoginInfo) {
+func (s *browserSession) saveAndClose(previous model.LoginInfo, reason string) {
 	if s.release != nil {
 		defer s.release()
 	}
 	s.fetchMu.Lock()
 	defer s.fetchMu.Unlock()
+	logf(s.cfg, "[browser] Closing window — reason: %s. Saving the session first.\n", reason)
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 

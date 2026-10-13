@@ -26,6 +26,7 @@ type RodBackend struct {
 	startURL            string
 	disablePageRecovery bool
 	stopProxyAuth       func()
+	options             Options
 }
 
 func (b *RodBackend) Name() string {
@@ -56,13 +57,24 @@ func (b *RodBackend) Start(ctx context.Context, options Options) error {
 		b.stopProxyAuth = stopProxyAuth
 	}
 
-	page, err := browser.Page(proto.TargetCreateTarget{URL: options.StartURL})
+	b.options = options
+
+	// Open the page blank first so timezone/locale/stealth are in place
+	// before the app loads, then navigate.
+	page, err := browser.Page(proto.TargetCreateTarget{URL: "about:blank"})
 	if err != nil {
 		_ = browser.Close()
 		return err
 	}
+	if err := b.preparePage(page); err != nil {
+		fmt.Printf("rod: page emulation setup failed: %v\n", err)
+	}
+	if err := page.Navigate(options.StartURL); err != nil {
+		_ = browser.Close()
+		return err
+	}
 
-	if err := page.WaitLoad(); err != nil {
+	if err := page.WaitLoad(); err != nil && !isRecoverablePageError(err) {
 		_ = browser.Close()
 		return err
 	}
@@ -72,6 +84,42 @@ func (b *RodBackend) Start(ctx context.Context, options Options) error {
 	b.startURL = options.StartURL
 	b.disablePageRecovery = options.DisablePageRecovery
 	return nil
+}
+
+// preparePage installs the timezone/locale emulation and the stealth init
+// script on a page BEFORE it loads the app. Called for the start page and
+// for every page recoverPage adopts.
+func (b *RodBackend) preparePage(page *rod.Page) error {
+	var firstErr error
+	if b.options.Timezone != "" {
+		if err := (proto.EmulationSetTimezoneOverride{TimezoneID: b.options.Timezone}).Call(page); err != nil && firstErr == nil {
+			firstErr = fmt.Errorf("timezone %q: %w", b.options.Timezone, err)
+		}
+	}
+	if b.options.Timezone != "" || b.options.Stealth {
+		if err := (proto.EmulationSetLocaleOverride{Locale: localeOrDefault(b.options.Locale)}).Call(page); err != nil && firstErr == nil {
+			firstErr = fmt.Errorf("locale: %w", err)
+		}
+	}
+	if b.options.Stealth {
+		if _, err := page.EvalOnNewDocument(stealthInitScript); err != nil && firstErr == nil {
+			firstErr = fmt.Errorf("stealth script: %w", err)
+		}
+	}
+	return firstErr
+}
+
+// Inspect returns what the page's JavaScript sees.
+func (b *RodBackend) Inspect(ctx context.Context) (Inspection, error) {
+	var result Inspection
+	err := b.withPageRetry(ctx, func(page *rod.Page) error {
+		obj, err := page.Eval("(" + inspectFunction + ")()")
+		if err != nil {
+			return err
+		}
+		return obj.Value.Unmarshal(&result)
+	})
+	return result, err
 }
 
 func launchRodBrowser(ctx context.Context, options Options) (string, error) {
@@ -96,6 +144,7 @@ func launchRodBrowser(ctx context.Context, options Options) (string, error) {
 		l.Proxy(options.Proxy.BrowserURL())
 		l.Set("proxy-bypass-list", "<-loopback>")
 	}
+	applyRodLaunchOptions(l, options)
 
 	bin, err := resolveRodBrowserBinary(options.UserDataDir)
 	if err != nil {
@@ -123,6 +172,44 @@ func launchRodBrowser(ctx context.Context, options Options) (string, error) {
 	}
 
 	return controlURL, nil
+}
+
+// applyRodLaunchOptions adds the stealth / low-memory flags. Rod's defaults
+// include --enable-automation (navigator.webdriver = true + infobar) and
+// --no-startup-window; both are removed in stealth mode.
+func applyRodLaunchOptions(l *launcher.Launcher, options Options) {
+	if options.Stealth {
+		l.Delete("enable-automation")
+		l.Set("disable-blink-features", "AutomationControlled")
+		l.Set("lang", localeOrDefault(options.Locale))
+		// no local/VPN IP leak via WebRTC when a proxy is in use
+		l.Set("webrtc-ip-handling-policy", "disable_non_proxied_udp")
+		l.Set("force-webrtc-ip-handling-policy")
+		size := options.WindowSize
+		if size == "" {
+			size = PickWindowSize(options.UserDataDir)
+		}
+		l.Set("window-size", size)
+		l.Set("no-default-browser-check")
+		l.Set("password-store", "basic")
+	}
+	if options.LowMemory {
+		l.Set("renderer-process-limit", "2")
+		l.Set("disable-extensions")
+		l.Set("disable-component-update")
+		l.Set("disable-background-mode")
+		l.Set("disable-domain-reliability")
+		l.Set("disable-speech-api")
+		l.Set("no-pings")
+		l.Set("js-flags", "--max-old-space-size=256")
+	}
+}
+
+func localeOrDefault(locale string) string {
+	if strings.TrimSpace(locale) == "" {
+		return "en-US"
+	}
+	return locale
 }
 
 func resolveRodBrowserBinary(userDataDir string) (string, error) {
@@ -423,13 +510,20 @@ func (b *RodBackend) recoverPage(ctx context.Context) (*rod.Page, error) {
 		}
 
 		if strings.HasPrefix(info.URL, b.startURL) || strings.HasPrefix(info.URL, "https://app.chitchat.gg/") {
+			_ = b.preparePage(candidate) // timezone/locale apply immediately; init script for next loads
 			b.page = candidate
 			return candidate.Context(ctx), nil
 		}
 	}
 
-	page, err := b.browser.Page(proto.TargetCreateTarget{URL: b.startURL})
+	page, err := b.browser.Page(proto.TargetCreateTarget{URL: "about:blank"})
 	if err != nil {
+		return nil, err
+	}
+	if err := b.preparePage(page); err != nil {
+		fmt.Printf("rod: page emulation setup failed: %v\n", err)
+	}
+	if err := page.Navigate(b.startURL); err != nil {
 		return nil, err
 	}
 

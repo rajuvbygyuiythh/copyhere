@@ -3,6 +3,8 @@ package bot
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -10,6 +12,8 @@ import (
 	"chitchatbot/internal/api"
 	"chitchatbot/internal/browser"
 	"chitchatbot/internal/model"
+	"chitchatbot/internal/proxy"
+	"chitchatbot/internal/store"
 )
 
 type fakeBackend struct {
@@ -32,7 +36,10 @@ func (f *fakeBackend) Navigate(_ context.Context, url string) error {
 	return nil
 }
 func (f *fakeBackend) SetCookies(context.Context, []model.Cookie) error { return nil }
-func (f *fakeBackend) Close() error                                     { return nil }
+func (f *fakeBackend) Inspect(context.Context) (browser.Inspection, error) {
+	return browser.Inspection{Timezone: "America/New_York", Languages: []string{"en-US"}}, nil
+}
+func (f *fakeBackend) Close() error { return nil }
 func (f *fakeBackend) Fetch(_ context.Context, req browser.FetchRequest) (browser.FetchResponse, error) {
 	f.last = req
 	f.fetches++
@@ -172,4 +179,76 @@ func TestBrowserExecutorProbesWindowAfterRepeatedFailures(t *testing.T) {
 	if !errors.Is(last, errBrowserGone) {
 		t.Fatalf("window dead: expected errBrowserGone after %d failures, got %v", browserProbeAfterFailures, last)
 	}
+}
+
+func TestBrowserWindowOptionsStealthAndTimezone(t *testing.T) {
+	cfg := Config{AppURL: "https://app.chitchat.gg/", Headless: false, BrowserTimezone: "America/New_York"}
+	opts := browserWindowOptions(cfg, "/tmp/x", nil)
+	if !opts.Stealth || !opts.LowMemory || opts.Locale != "en-US" || opts.Timezone != "America/New_York" || opts.StartURL != cfg.AppURL {
+		t.Fatalf("unexpected options: %+v", opts)
+	}
+	withTZ := &proxy.Entry{Scheme: "http", Host: "1.2.3.4", Port: "8080", Timezone: "America/Chicago"}
+	if got := browserWindowOptions(cfg, "/tmp/x", withTZ).Timezone; got != "America/Chicago" {
+		t.Fatalf("proxy timezone must win, got %s", got)
+	}
+	noTZ := &proxy.Entry{Scheme: "http", Host: "1.2.3.4", Port: "8080"}
+	if got := browserWindowOptions(cfg, "/tmp/x", noTZ).Timezone; got != "America/New_York" {
+		t.Fatalf("setting timezone must be used when the proxy has none, got %s", got)
+	}
+}
+
+func TestCloseReason(t *testing.T) {
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+	if r := closeReason(cancelled, errors.New("x")); r != "Stop pressed" {
+		t.Fatal(r)
+	}
+	if r := closeReason(context.Background(), nil); r != "worker finished" {
+		t.Fatal(r)
+	}
+	if r := closeReason(context.Background(), errBrowserGone); r != "window closed or unreachable" {
+		t.Fatal(r)
+	}
+	if r := closeReason(context.Background(), errors.New("boom")); r != "worker error: boom" {
+		t.Fatal(r)
+	}
+}
+
+func TestAdoptBrowserSessionUsesAttachedWindow(t *testing.T) {
+	dir := t.TempDir()
+	// backend that is "logged in": cookies with a token and an authenticated API answer
+	fb := &loggedInBackend{}
+	cfg := Config{
+		DataDir: dir, Profile: "acct", Backend: "rod", AppURL: "https://app.chitchat.gg/",
+		APIBaseURL: "https://api.chitchat.gg", BrowserMode: true, AttachedBackend: fb,
+		LoginInfoPath: filepath.Join(dir, "login_info_acct.json"),
+	}
+	p := profilePaths(cfg)
+	if err := store.EnsureDir(p.ProfileDir); err != nil {
+		t.Fatal(err)
+	}
+	s, login, err := openBrowserSession(context.Background(), cfg, p, model.LoginInfo{})
+	if err != nil {
+		t.Fatalf("adopt failed: %v", err)
+	}
+	defer s.release()
+	if s.backend != fb || login.Token() != "tok" || fb.started {
+		t.Fatalf("attached window must be adopted, not launched: started=%v login=%+v", fb.started, login)
+	}
+	if _, err := os.Stat(p.LoginInfo); err != nil {
+		t.Fatalf("login file must be written: %v", err)
+	}
+}
+
+type loggedInBackend struct {
+	fakeBackend
+	started bool
+}
+
+func (l *loggedInBackend) Start(context.Context, browser.Options) error { l.started = true; return nil }
+func (l *loggedInBackend) CaptureSession(context.Context) (model.LoginInfo, error) {
+	return model.LoginInfo{Cookies: []model.Cookie{{Name: "token", Value: "tok"}}, LocalStorage: map[string]string{"cachedUserId": "u-1"}}, nil
+}
+func (l *loggedInBackend) Fetch(context.Context, browser.FetchRequest) (browser.FetchResponse, error) {
+	return browser.FetchResponse{OK: true, Status: 200, Text: "[]"}, nil
 }

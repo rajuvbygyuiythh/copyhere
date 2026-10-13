@@ -15,6 +15,20 @@ type BrowserSettings struct {
 	// BrowserMode keeps the real browser window open for the whole run and
 	// sends every request through that page (no Go http / websocket).
 	BrowserMode bool `json:"browser_mode"`
+	// Timezone the browser windows pretend to be in (IANA, e.g.
+	// America/New_York). A proxy line with `|tz=Zone` overrides it per window.
+	Timezone string `json:"timezone"`
+}
+
+// DefaultBrowserTimezone matches the USA persona.
+const DefaultBrowserTimezone = "America/New_York"
+
+// EffectiveTimezone returns the configured zone or the default.
+func (b BrowserSettings) EffectiveTimezone() string {
+	if zone := strings.TrimSpace(b.Timezone); zone != "" {
+		return zone
+	}
+	return DefaultBrowserTimezone
 }
 
 const (

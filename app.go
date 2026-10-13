@@ -34,6 +34,7 @@ type App struct {
 	runID          uint64
 	botCancel      context.CancelFunc
 	activeWorkers  map[string]bool
+	liveWorkers    map[string]context.CancelFunc // Browser-mode handover workers (Run Fresh Browsers), keyed by login file
 	licenseKey     string
 	licenseInvalid bool
 	licenseReason  string
@@ -159,7 +160,7 @@ func (a *App) GetInitialState() (model.UISnapshot, error) {
 	}
 
 	a.mu.Lock()
-	running := a.running
+	running := a.running || len(a.liveWorkers) > 0
 	runningAccounts := len(a.activeWorkers)
 	isLicenseInvalid := a.licenseInvalid
 	licenseKey := a.licenseKey
@@ -708,9 +709,10 @@ func (a *App) StartBot() error {
 			a.running = false
 			a.botCancel = nil
 			a.runID++
+			liveLeft := len(a.liveWorkers)
 			a.mu.Unlock()
 			a.log("info", "All bot workers stopped.")
-			a.emitStatus(false)
+			a.emitStatus(liveLeft > 0)
 			return
 		}
 		a.mu.Unlock()
@@ -722,20 +724,59 @@ func (a *App) StartBot() error {
 func (a *App) StopBot() error {
 	a.mu.Lock()
 	cancel := a.botCancel
-	if cancel == nil {
-		a.mu.Unlock()
-		return nil
-	}
 	a.botCancel = nil
 	a.running = false
+	live := make([]context.CancelFunc, 0, len(a.liveWorkers))
+	for _, c := range a.liveWorkers {
+		live = append(live, c)
+	}
 	a.mu.Unlock()
 
-	cancel()
+	if cancel == nil && len(live) == 0 {
+		return nil
+	}
+	if cancel != nil {
+		cancel()
+	}
+	for _, c := range live {
+		c()
+	}
 	a.clearActiveWorkers()
 	bot.ClearAllWorkerPhases()
-	a.log("info", "Stopping all bot workers.")
+	if len(live) > 0 {
+		a.log("info", fmt.Sprintf("Stopping all bot workers (%d live browser window(s) will save their session and close).", len(live)))
+	} else {
+		a.log("info", "Stopping all bot workers.")
+	}
 	a.emitStatus(false)
 	return nil
+}
+
+// registerLiveWorker records a Browser-mode handover worker so Stop can end
+// it and Start does not open a second window for the same login file.
+func (a *App) registerLiveWorker(loginPath string, cancel context.CancelFunc) {
+	a.mu.Lock()
+	if a.liveWorkers == nil {
+		a.liveWorkers = map[string]context.CancelFunc{}
+	}
+	a.liveWorkers[loginPath] = cancel
+	a.mu.Unlock()
+	a.emitStatus(true)
+}
+
+func (a *App) unregisterLiveWorker(loginPath string) {
+	a.mu.Lock()
+	delete(a.liveWorkers, loginPath)
+	stillRunning := a.running || len(a.liveWorkers) > 0
+	a.mu.Unlock()
+	a.emitStatus(stillRunning)
+}
+
+func (a *App) liveWorkerActive(loginPath string) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	_, ok := a.liveWorkers[loginPath]
+	return ok
 }
 
 func (a *App) seedDefaults() error {
@@ -792,7 +833,17 @@ func pathInside(parent string, child string) bool {
 	return strings.HasPrefix(child, parent+string(os.PathSeparator))
 }
 
-func (a *App) buildBotConfigs() ([]bot.Config, error) {
+// botRunEnv is everything a worker config needs besides its account.
+type botRunEnv struct {
+	browser  model.BrowserSettings
+	message  model.MessageSettings
+	general  model.GeneralSettings
+	proxies  []proxy.Entry
+	evaChat  *bot.EVAChatConfig
+	chatMode string
+}
+
+func (a *App) loadBotRunEnv() (*botRunEnv, error) {
 	browserSettings, err := a.uiStore.LoadBrowserSettings()
 	if err != nil {
 		return nil, err
@@ -846,91 +897,122 @@ func (a *App) buildBotConfigs() ([]bot.Config, error) {
 		a.log("info", fmt.Sprintf("%s | files: %s", apiEngine.Describe(), dataRoot))
 	}
 
+	return &botRunEnv{
+		browser:  browserSettings,
+		message:  messageSettings,
+		general:  generalSettings,
+		proxies:  proxyEntries,
+		evaChat:  evaChatConfig,
+		chatMode: messageSettings.EffectiveChatMode(),
+	}, nil
+}
+
+func (a *App) buildBotConfigs() ([]bot.Config, error) {
+	env, err := a.loadBotRunEnv()
+	if err != nil {
+		return nil, err
+	}
+	browserSettings := env.browser
+
 	profiles, err := workerplan.DiscoverProfileWorkers(a.dataDir, browserSettings.Profile)
 	if err != nil {
 		return nil, err
 	}
 
-	assignments := workerplan.AssignProfileWorkers(profiles, proxyEntries)
+	assignments := workerplan.AssignProfileWorkers(profiles, env.proxies)
 	configs := make([]bot.Config, 0, len(assignments))
 	if !browserSettings.BrowserMode {
 		a.log("info", "Browser page run mode: 1. CLASSIC — browser only for login capture (closes after login), chat from the app.")
 	}
 	if browserSettings.BrowserMode {
-		a.log("info", fmt.Sprintf("Browser page run mode: 2. BROWSER MODE (live window) — %d visible browser window(s) will stay open until Stop; all chat traffic goes through them (no websocket).", len(assignments)))
+		a.log("info", fmt.Sprintf("Browser page run mode: 2. BROWSER MODE (live window) — %d visible browser window(s) will stay open until Stop; all chat traffic goes through them (no websocket). Timezone %s (proxy |tz= overrides).", len(assignments), browserSettings.EffectiveTimezone()))
 		if len(assignments) > 10 {
-			a.log("warn", fmt.Sprintf("Browser mode with %d accounts = %d Chrome windows (about 300-500 MB RAM each). Consider fewer accounts or the normal mode for the rest.", len(assignments), len(assignments)))
+			a.log("warn", fmt.Sprintf("Browser mode with %d accounts = %d Chrome windows (about 150-300 MB RAM each). Consider fewer accounts or the normal mode for the rest.", len(assignments), len(assignments)))
 		}
 	}
 
 	for _, assignment := range assignments {
-		cfg := bot.DefaultConfig(
-			a.dataDir,
-			assignment.Profile,
-			browserSettings.Backend,
-			browserSettings.Headless,
-		)
-		cfg.LoginInfoPath = assignment.LoginInfoPath
-		if browserSettings.BrowserMode {
-			// Browser mode: the window must be visible (that is the point).
-			cfg.BrowserMode = true
-			cfg.Headless = false
+		if assignment.LoginInfoPath != "" && a.liveWorkerActive(assignment.LoginInfoPath) {
+			a.log("info", fmt.Sprintf("Skipping %s: already chatting in a live browser window (fresh login handover).", assignment.Profile))
+			continue
 		}
-		cfg.ChatMode = messageSettings.EffectiveChatMode()
-		if cfg.ChatMode == model.ChatModeEVAChat || cfg.ChatMode == model.ChatModeAPIChat {
-			cfg.EVAChat = evaChatConfig
-			// EVAChat has its own persisted stage state. Keep MessageSequence
-			// empty so sequence code cannot accidentally drive this mode.
-			cfg.MessageSequence = nil
-			cfg.AvailableSequences = nil
-		} else if cfg.ChatMode == model.ChatModeFolder && len(messageSettings.LoadedSequences) > 0 {
-			cfg.AvailableSequences = make([][]string, len(messageSettings.LoadedSequences))
-			for i, seqStr := range messageSettings.LoadedSequences {
-				cfg.AvailableSequences[i] = model.MessageSequenceLines(seqStr)
-			}
-		} else {
-			cfg.AvailableSequences = [][]string{messageSettings.SequenceLines()}
-		}
-		cfg.MessageUsernames = messageSettings.UsernameLines()
-		cfg.MatchWhenIdle = true
-		cfg.PollMin = time.Duration(generalSettings.PollMinSeconds) * time.Second
-		cfg.PollMax = time.Duration(generalSettings.PollMaxSeconds) * time.Second
-		cfg.ActionMin = time.Duration(generalSettings.ActionMinSeconds) * time.Second
-		cfg.ActionMax = time.Duration(generalSettings.ActionMaxSeconds) * time.Second
-		cfg.MatchReplyTimeoutMin = time.Duration(generalSettings.MatchReplyTimeoutMinSeconds) * time.Second
-		cfg.MatchReplyTimeoutMax = time.Duration(generalSettings.MatchReplyTimeoutMaxSeconds) * time.Second
-		cfg.MatchCloseWaitMin = time.Duration(generalSettings.MatchCloseWaitMinSeconds) * time.Second
-		cfg.MatchCloseWaitMax = time.Duration(generalSettings.MatchCloseWaitMaxSeconds) * time.Second
-		cfg.ReplyDelayMin = time.Duration(generalSettings.ReplyDelayMinSeconds) * time.Second
-		cfg.ReplyDelayMax = time.Duration(generalSettings.ReplyDelayMaxSeconds) * time.Second
-		cfg.Pacing = pacingFromSettings(generalSettings)
-
-		profileName := assignment.Profile
-		proxyLabel := "direct"
-		if assignment.HasProxy {
-			assignedProxy := assignment.Proxy
-			cfg.ProxyRotator = proxy.NewRotator([]proxy.Entry{assignedProxy})
-			proxyLabel = assignedProxy.Label()
-		}
-
-		cfg.Logf = func(format string, args ...any) {
-			message := fmt.Sprintf(strings.TrimSuffix(format, "\n"), args...)
-			a.log("info", fmt.Sprintf("[%s] %s", profileName, message))
-		}
-		cfg.Activityf = func(format string, args ...any) {
-			message := fmt.Sprintf(strings.TrimSuffix(format, "\n"), args...)
-			a.log("activity", message)
-		}
-
-		if assignment.LoginInfoPath != "" {
-			a.log("info", fmt.Sprintf("Prepared worker for user/profile %s using %s from %s.", profileName, proxyLabel, assignment.LoginInfoPath))
-		} else {
-			a.log("info", fmt.Sprintf("Prepared worker for profile %s using %s.", profileName, proxyLabel))
-		}
-		configs = append(configs, cfg)
+		configs = append(configs, a.workerConfig(env, assignment))
 	}
 
 	return configs, nil
+}
+
+// workerConfig builds the bot.Config of one account from the shared env.
+func (a *App) workerConfig(env *botRunEnv, assignment workerplan.Assignment) bot.Config {
+	browserSettings := env.browser
+	messageSettings := env.message
+	generalSettings := env.general
+
+	cfg := bot.DefaultConfig(
+		a.dataDir,
+		assignment.Profile,
+		browserSettings.Backend,
+		browserSettings.Headless,
+	)
+	cfg.LoginInfoPath = assignment.LoginInfoPath
+	cfg.BrowserTimezone = browserSettings.EffectiveTimezone()
+	if browserSettings.BrowserMode {
+		// Browser mode: the window must be visible (that is the point).
+		cfg.BrowserMode = true
+		cfg.Headless = false
+	}
+	cfg.ChatMode = env.chatMode
+	if cfg.ChatMode == model.ChatModeEVAChat || cfg.ChatMode == model.ChatModeAPIChat {
+		cfg.EVAChat = env.evaChat
+		// EVAChat has its own persisted stage state. Keep MessageSequence
+		// empty so sequence code cannot accidentally drive this mode.
+		cfg.MessageSequence = nil
+		cfg.AvailableSequences = nil
+	} else if cfg.ChatMode == model.ChatModeFolder && len(messageSettings.LoadedSequences) > 0 {
+		cfg.AvailableSequences = make([][]string, len(messageSettings.LoadedSequences))
+		for i, seqStr := range messageSettings.LoadedSequences {
+			cfg.AvailableSequences[i] = model.MessageSequenceLines(seqStr)
+		}
+	} else {
+		cfg.AvailableSequences = [][]string{messageSettings.SequenceLines()}
+	}
+	cfg.MessageUsernames = messageSettings.UsernameLines()
+	cfg.MatchWhenIdle = true
+	cfg.PollMin = time.Duration(generalSettings.PollMinSeconds) * time.Second
+	cfg.PollMax = time.Duration(generalSettings.PollMaxSeconds) * time.Second
+	cfg.ActionMin = time.Duration(generalSettings.ActionMinSeconds) * time.Second
+	cfg.ActionMax = time.Duration(generalSettings.ActionMaxSeconds) * time.Second
+	cfg.MatchReplyTimeoutMin = time.Duration(generalSettings.MatchReplyTimeoutMinSeconds) * time.Second
+	cfg.MatchReplyTimeoutMax = time.Duration(generalSettings.MatchReplyTimeoutMaxSeconds) * time.Second
+	cfg.MatchCloseWaitMin = time.Duration(generalSettings.MatchCloseWaitMinSeconds) * time.Second
+	cfg.MatchCloseWaitMax = time.Duration(generalSettings.MatchCloseWaitMaxSeconds) * time.Second
+	cfg.ReplyDelayMin = time.Duration(generalSettings.ReplyDelayMinSeconds) * time.Second
+	cfg.ReplyDelayMax = time.Duration(generalSettings.ReplyDelayMaxSeconds) * time.Second
+	cfg.Pacing = pacingFromSettings(generalSettings)
+
+	profileName := assignment.Profile
+	proxyLabel := "direct"
+	if assignment.HasProxy {
+		assignedProxy := assignment.Proxy
+		cfg.ProxyRotator = proxy.NewRotator([]proxy.Entry{assignedProxy})
+		proxyLabel = assignedProxy.Label()
+	}
+
+	cfg.Logf = func(format string, args ...any) {
+		message := fmt.Sprintf(strings.TrimSuffix(format, "\n"), args...)
+		a.log("info", fmt.Sprintf("[%s] %s", profileName, message))
+	}
+	cfg.Activityf = func(format string, args ...any) {
+		message := fmt.Sprintf(strings.TrimSuffix(format, "\n"), args...)
+		a.log("activity", message)
+	}
+
+	if assignment.LoginInfoPath != "" {
+		a.log("info", fmt.Sprintf("Prepared worker for user/profile %s using %s from %s.", profileName, proxyLabel, assignment.LoginInfoPath))
+	} else {
+		a.log("info", fmt.Sprintf("Prepared worker for profile %s using %s.", profileName, proxyLabel))
+	}
+	return cfg
 }
 
 func safeProfileName(name string) string {
@@ -982,12 +1064,25 @@ func (a *App) runFreshBrowser(profileDir string, profileName string, settings mo
 		a.log("info", fmt.Sprintf("[%s fresh %d/%d] Using proxy %s", profileName, index, total, selectedProxy.Label()))
 	}
 
+	zone := settings.EffectiveTimezone()
+	if selectedProxy != nil && strings.TrimSpace(selectedProxy.Timezone) != "" {
+		zone = strings.TrimSpace(selectedProxy.Timezone)
+	}
+	headless := settings.Headless
+	if settings.BrowserMode {
+		headless = false // live window must be visible
+		a.log("info", fmt.Sprintf("[%s fresh %d/%d] Browser mode is on: after login this window STAYS OPEN and starts chatting (timezone %s).", profileName, index, total, zone))
+	}
 	if err := backend.Start(ctx, browser.Options{
 		StartURL:            "https://app.chitchat.gg/",
 		UserDataDir:         userDataDir,
-		Headless:            settings.Headless,
-		DisablePageRecovery: true,
+		Headless:            headless,
+		DisablePageRecovery: !settings.BrowserMode,
 		Proxy:               selectedProxy,
+		Timezone:            zone,
+		Locale:              "en-US",
+		Stealth:             true,
+		LowMemory:           true,
 	}); err != nil {
 		a.log("error", fmt.Sprintf("[%s fresh %d/%d] Browser start failed: %v", profileName, index, total, err))
 		return
@@ -1014,13 +1109,65 @@ func (a *App) runFreshBrowser(profileDir string, profileName string, settings mo
 		return
 	}
 
-	a.log("info", fmt.Sprintf(
-		"[%s fresh %d/%d] Login saved to %s. Temporary browser data will be removed after close.",
-		profileName,
-		index,
-		total,
-		loginPath,
-	))
+	if !settings.BrowserMode {
+		a.log("info", fmt.Sprintf(
+			"[%s fresh %d/%d] Login saved to %s. Classic mode: this window closes now; press Start to chat with it.",
+			profileName,
+			index,
+			total,
+			loginPath,
+		))
+		return
+	}
+
+	a.log("info", fmt.Sprintf("[%s fresh %d/%d] Login saved to %s. Browser mode: handing this window over to a live worker.", profileName, index, total, loginPath))
+	a.runLiveHandoverWorker(backend, loginPath, profileName, login, selectedProxy)
+	// returning closes the window and removes the temp data (deferred above)
+}
+
+// runLiveHandoverWorker runs a Browser-mode worker inside an already open,
+// logged-in fresh window. Blocks until Stop / window closed / fatal error.
+func (a *App) runLiveHandoverWorker(backend browser.Backend, loginPath string, parentProfile string, login model.LoginInfo, selectedProxy *proxy.Entry) {
+	env, err := a.loadBotRunEnv()
+	if err != nil {
+		a.log("error", fmt.Sprintf("[%s] Live window handover failed to load settings: %v", parentProfile, err))
+		return
+	}
+	workerName := workerplan.WorkerNameFromLoginFile(parentProfile, loginPath, login.CurrentUserID())
+	assignment := workerplan.Assignment{Profile: workerName, LoginInfoPath: loginPath}
+	if selectedProxy != nil {
+		assignment.Proxy = *selectedProxy
+		assignment.HasProxy = true
+	}
+	cfg := a.workerConfig(env, assignment)
+	cfg.BrowserMode = true
+	cfg.Headless = false
+	cfg.AttachedBackend = backend
+	if selectedProxy != nil && strings.TrimSpace(selectedProxy.Timezone) != "" {
+		cfg.BrowserTimezone = strings.TrimSpace(selectedProxy.Timezone)
+	}
+	// the window already has its proxy; the worker must not pick another
+	cfg.ProxyRotator = nil
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	a.registerLiveWorker(loginPath, cancel)
+	a.setWorkerRunning(workerName, true)
+	defer func() {
+		a.setWorkerRunning(workerName, false)
+		a.unregisterLiveWorker(loginPath)
+	}()
+
+	a.log("info", fmt.Sprintf("[%s] Live window worker started (press Stop to save the session and close the window).", workerName))
+	err = bot.Run(ctx, cfg)
+	switch {
+	case errors.Is(err, context.Canceled):
+		a.log("info", fmt.Sprintf("[%s] Live window worker stopped.", workerName))
+	case err != nil:
+		a.log("error", fmt.Sprintf("[%s] Live window worker stopped with error: %v", workerName, err))
+	default:
+		a.log("info", fmt.Sprintf("[%s] Live window worker finished.", workerName))
+	}
 }
 
 func (a *App) captureFreshLogin(

@@ -115,3 +115,7 @@ Format: date · commit(s) · what · why/notes. Older history condensed.
 - Owner reported browser still closing after login → Browser page rebuilt as
   two separate run-mode cards (Classic / Browser mode), auto-save on click,
   mode printed at Start; browser-mode cycles retry instead of stopping.
+- Owner: browser still closes after login; wants never-close + stealth +
+  light browser; asked plan→scope→fix→verify. ask_user: cause = Run Fresh
+  Browsers; tz per proxy; both lightweight options; captures later. Shipped
+  P9 A/B/C1 (handover, close reasons, stealth, tz, low-mem). C2 pending.

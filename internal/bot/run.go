@@ -24,7 +24,9 @@ type Config struct {
 	LoginInfoPath        string
 	Backend              string
 	Headless             bool
-	BrowserMode          bool // keep the real browser open; chat through its page
+	BrowserMode          bool            // keep the real browser open; chat through its page
+	BrowserTimezone      string          // emulated timezone for the window (proxy |tz= overrides)
+	AttachedBackend      browser.Backend // Browser mode: an already open, logged-in window to adopt (fresh-login handover)
 	MatchWhenIdle        bool
 	PollMin              time.Duration
 	PollMax              time.Duration
@@ -76,7 +78,7 @@ var errLoginExpired = errors.New("login expired")
 // window stays open) up to this many times in a row before the worker stops.
 const browserMaxCycleFailures = 10
 
-func Run(ctx context.Context, cfg Config) error {
+func Run(ctx context.Context, cfg Config) (retErr error) {
 	if cfg.Backend != "rod" && cfg.Backend != "chromedp" {
 		return fmt.Errorf("backend must be rod or chromedp, got %q", cfg.Backend)
 	}
@@ -96,7 +98,7 @@ func Run(ctx context.Context, cfg Config) error {
 		if err != nil {
 			return err
 		}
-		defer func() { bsession.saveAndClose(login) }()
+		defer func() { bsession.saveAndClose(login, closeReason(ctx, retErr)) }()
 	} else if login.Token() == "" {
 		logln(cfg, "No saved login token found. Opening browser for login.")
 		login, err = captureLoginViaBrowser(ctx, cfg, p)
@@ -397,6 +399,22 @@ func match(ctx context.Context, client *api.Client, cfg Config) error {
 	return nil
 }
 
+// closeReason describes why a browser-mode worker is ending (for the log).
+func closeReason(ctx context.Context, err error) string {
+	switch {
+	case ctx.Err() != nil:
+		return "Stop pressed"
+	case err == nil:
+		return "worker finished"
+	case errors.Is(err, errBrowserGone):
+		return "window closed or unreachable"
+	case errors.Is(err, errAccountBanned):
+		return "account banned"
+	default:
+		return "worker error: " + err.Error()
+	}
+}
+
 func currentUserIDFromLogin(login model.LoginInfo) string {
 	return login.CurrentUserID()
 }
@@ -463,12 +481,7 @@ func captureLoginViaBrowser(ctx context.Context, cfg Config, p paths) (model.Log
 		}
 	}
 
-	if err := backend.Start(ctx, browser.Options{
-		StartURL:    cfg.AppURL,
-		UserDataDir: userDataDir,
-		Headless:    cfg.Headless,
-		Proxy:       selectedProxy,
-	}); err != nil {
+	if err := backend.Start(ctx, browserWindowOptions(cfg, userDataDir, selectedProxy)); err != nil {
 		return model.LoginInfo{}, err
 	}
 

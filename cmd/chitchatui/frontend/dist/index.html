@@ -146,7 +146,7 @@
       <section class="tab-panel" data-panel="message">
         <header class="panel-header">
           <div>
-            <h1>Message <span id="ui-build-tag" style="font-size:0.5em; font-weight:normal; color:var(--muted); vertical-align:middle;">UI build 2026-10-14c · 4 chat modes · 2 browser run modes</span></h1>
+            <h1>Message <span id="ui-build-tag" style="font-size:0.5em; font-weight:normal; color:var(--muted); vertical-align:middle;">UI build 2026-10-14d · 4 chat modes · live browser v2</span></h1>
             <p>One line equals one bot message step. Line 1 is first message, line 2 is second reply, line 3 is third reply, and so on.</p>
           </div>
         </header>
@@ -288,7 +288,15 @@
               </div>
             </label>
           </div>
-          <div class="hint-text">Clicking a card saves the mode immediately. The Start log prints which mode is running.</div>
+          <div class="hint-text">Clicking a card saves the mode immediately. The Start log prints which mode is running. <strong>Run Fresh Browsers</strong> follows the mode too: in Browser mode a fresh window stays open after login and starts chatting right away.</div>
+
+          <label style="margin-top:12px;">
+            <span>Browser timezone (what the site sees)</span>
+            <input type="text" id="browser-timezone" placeholder="America/New_York">
+          </label>
+          <div class="hint-text">
+            Every window pretends to be in this IANA zone (locale en-US) instead of your PC's real timezone. Per proxy override: add <code>|tz=America/Chicago</code> at the end of a proxy line. All windows also run with automation markers removed (no <code>navigator.webdriver</code>, no "controlled by software" bar), WebRTC local-IP leak blocked, realistic window size and low-memory flags. After login the log prints a <code>[browser] check:</code> line with what the site sees.
+          </div>
 
           <div class="fresh-browser-card">
             <div>

@@ -172,6 +172,12 @@ func loadLoginSummary(path string) (model.LoginInfo, error) {
 	return login, nil
 }
 
+// WorkerNameFromLoginFile is the worker/profile name the dashboard uses for
+// an account stored in a login_info_*.json file (user id when known).
+func WorkerNameFromLoginFile(parentProfile string, loginPath string, userID string) string {
+	return workerNameFromLoginFile(parentProfile, loginPath, userID)
+}
+
 func workerNameFromLoginFile(parentProfile string, loginPath string, userID string) string {
 	userID = sanitizeProfileSegment(userID)
 	if userID != "" {

@@ -1,4 +1,4 @@
-# 00 — RESUME BRIEF (always current; last update: 2026-10-14 (P8 two run-mode cards), Asia/Dhaka)
+# 00 — RESUME BRIEF (always current; last update: 2026-10-14 (P9 live browser v2), Asia/Dhaka)
 
 ## Where we are (one paragraph)
 
@@ -14,6 +14,20 @@ chat from `snap_usernames.txt`. Owner tests apitest on his PC against the real
 API and pastes output; agent fixes bugs from that output.
 
 ## Last thing done (most recent turn first)
+
+0000000000. **P9 Live Browser v2 shipped.** Owner confirmed the "closes after
+        login" came from **Run Fresh Browsers** (always closed by design).
+        Now in Browser mode a fresh window is handed over to a live worker
+        (`AttachedBackend`, `runLiveHandoverWorker`, `liveWorkers`; Stop
+        closes them, Start skips them). Every close logs a reason. Stealth
+        always on (no enable-automation, AutomationControlled, lang, WebRTC
+        policy, window size, CDP timezone+locale, init script, `[browser]
+        check:` line). Timezone: Browser page field (default
+        America/New_York) + per-proxy `|tz=Zone` suffix. Low-memory flags.
+        UI tag `2026-10-14d · live browser v2`. All checks green (offline
+        typecheck + race, real rod/chromedp build + tests, proxy tests, ui
+        smoke). NEXT: C2 shared-Chrome per-account contexts; owner's first
+        real run logs.
 
 000000000. Owner: "after login the browser still auto-closes; make the two
         browser modes SEPARATE". Browser page now has two radio CARDS under

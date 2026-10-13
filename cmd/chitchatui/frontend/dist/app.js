@@ -161,6 +161,8 @@ function fillForms(snapshot) {
   document.getElementById("browser-profile").value = snapshot.browser.profile || "default";
   document.getElementById("browser-headless").checked = !!snapshot.browser.headless;
   setBrowserRunMode(!!snapshot.browser.browser_mode);
+  const tzInput = document.getElementById("browser-timezone");
+  if (tzInput) tzInput.value = snapshot.browser.timezone || "";
   
   const currentMode = snapshot.message.chat_mode || ((snapshot.message.use_loaded_sequences && snapshot.message.loaded_sequences && snapshot.message.loaded_sequences.length > 0) ? "folder" : "single");
   setChatMode(currentMode);
@@ -254,6 +256,7 @@ function browserSettingsPayload() {
     backend: selectedBackend(),
     headless: document.getElementById("browser-headless").checked,
     browser_mode: browserRunModeIsLive(),
+    timezone: ((document.getElementById("browser-timezone") || {}).value || "").trim(),
   };
 }
 

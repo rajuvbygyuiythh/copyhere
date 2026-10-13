@@ -10,7 +10,9 @@ import (
 	"chitchatbot/internal/model"
 	"chitchatbot/internal/runtimeassets"
 	"github.com/chromedp/cdproto/cdp"
+	"github.com/chromedp/cdproto/emulation"
 	cdpfetch "github.com/chromedp/cdproto/fetch"
+	"github.com/chromedp/cdproto/page"
 
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/cdproto/runtime"
@@ -35,6 +37,32 @@ func (b *ChromeDPBackend) Start(parent context.Context, options Options) error {
 		chromedp.Flag("disable-popup-blocking", false),
 		chromedp.Flag("disable-extensions", true),
 	)
+	if options.Stealth {
+		size := options.WindowSize
+		if size == "" {
+			size = PickWindowSize(options.UserDataDir)
+		}
+		execOpts = append(execOpts,
+			chromedp.Flag("enable-automation", false),
+			chromedp.Flag("disable-blink-features", "AutomationControlled"),
+			chromedp.Flag("lang", localeOrDefault(options.Locale)),
+			chromedp.Flag("webrtc-ip-handling-policy", "disable_non_proxied_udp"),
+			chromedp.Flag("force-webrtc-ip-handling-policy", true),
+			chromedp.WindowSize(windowSizeParts(size)),
+			chromedp.Flag("password-store", "basic"),
+		)
+	}
+	if options.LowMemory {
+		execOpts = append(execOpts,
+			chromedp.Flag("renderer-process-limit", "2"),
+			chromedp.Flag("disable-component-update", true),
+			chromedp.Flag("disable-background-mode", true),
+			chromedp.Flag("disable-domain-reliability", true),
+			chromedp.Flag("disable-speech-api", true),
+			chromedp.Flag("no-pings", true),
+			chromedp.Flag("js-flags", "--max-old-space-size=256"),
+		)
+	}
 	if options.Proxy != nil {
 		execOpts = append(execOpts, chromedp.ProxyServer(options.Proxy.BrowserURL()))
 	}
@@ -73,6 +101,18 @@ func (b *ChromeDPBackend) Start(parent context.Context, options Options) error {
 	}
 	if options.Proxy != nil && options.Proxy.HasAuth() {
 		actions = append(actions, cdpfetch.Enable().WithHandleAuthRequests(true))
+	}
+	if options.Timezone != "" {
+		actions = append(actions, emulation.SetTimezoneOverride(options.Timezone))
+	}
+	if options.Timezone != "" || options.Stealth {
+		actions = append(actions, emulation.SetLocaleOverride().WithLocale(localeOrDefault(options.Locale)))
+	}
+	if options.Stealth {
+		actions = append(actions, chromedp.ActionFunc(func(execCtx context.Context) error {
+			_, err := page.AddScriptToEvaluateOnNewDocument(stealthInitScript).Do(execCtx)
+			return err
+		}))
 	}
 	actions = append(actions,
 		chromedp.Navigate(options.StartURL),
@@ -244,6 +284,31 @@ func (b *ChromeDPBackend) Fetch(ctx context.Context, req FetchRequest) (FetchRes
 	}
 
 	return response, nil
+}
+
+// Inspect returns what the page's JavaScript sees.
+func (b *ChromeDPBackend) Inspect(ctx context.Context) (Inspection, error) {
+	var result Inspection
+	if b.ctx == nil {
+		return result, ErrPageUnavailable
+	}
+	err := b.eval(ctx, "("+inspectFunction+")()", &result)
+	return result, err
+}
+
+func windowSizeParts(size string) (int, int) {
+	parts := strings.Split(size, ",")
+	if len(parts) != 2 {
+		return 1366, 768
+	}
+	var w, h int
+	if _, err := fmt.Sscanf(strings.TrimSpace(parts[0]), "%d", &w); err != nil || w <= 0 {
+		return 1366, 768
+	}
+	if _, err := fmt.Sscanf(strings.TrimSpace(parts[1]), "%d", &h); err != nil || h <= 0 {
+		return 1366, 768
+	}
+	return w, h
 }
 
 func (b *ChromeDPBackend) eval(ctx context.Context, expression string, dest any) error {
