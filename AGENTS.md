@@ -118,3 +118,22 @@ Manual: `wails build -clean -webview2 error` or `.\scripts\bundle-windows.ps1 -C
 Dashboard → Message → choose **EVAChat Flow** → fill **Usernames** (one snap
 handle per line) → Save → Start. First start seeds `data/eva_chat/`; edit
 those TXT files and restart the bot to reload.
+
+## 7. `apitest/` — the AI funnel lab (separate module, NOT wired to the bot)
+
+**If you lost context, read `apitest/HANDOFF.md` first (2 minutes), then
+`apitest/PLAN.md`.** Everything about the AI chat design lives there.
+
+* `apitest/` is its own Go module (`module apitest`, no deps). It never
+  imports the bot and the bot never imports it. Build: `apitest.bat`.
+* Purpose: design and test, against a real OpenAI-compatible API
+  (Featherless by default), HOW the AI girl chats: tone, funnel to the snap
+  share, moods, memory, anti-bot-tells. Decisions are recorded in
+  `apitest/PLAN.md`; the running log of what is done / what is next is
+  `apitest/HANDOFF.md`.
+* Rule from the owner: **do not touch the main bot for anything AI-related
+  until the apitest behaviour is approved; then design the integration
+  together (step 4 in HANDOFF.md).**
+* Secrets: `apitest/apitest.config.txt` (API key, snap username) and
+  `apitest/apitest.log` are gitignored. Never commit them.
+* Owner communicates in Bengali/Banglish; reply in Bengali.

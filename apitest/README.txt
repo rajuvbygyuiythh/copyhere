@@ -9,7 +9,7 @@ apitest — standalone API chat tester (NOT connected to the bot code)
 6. apitest.bat scenario horny        -> plays the scripted stranger from scenarios.txt
    apitest.bat scenario all          -> all scenarios (horny, warm, cold, asl, tricky, noeng, money)
    every chat is appended to apitest.log (send that file for review)
-7. PLAN.md explains the funnel "director": interest score -> HOT/WARM/COLD ->
+7. HANDOFF.md = where we are / what is next (read first after a break). PLAN.md explains the funnel "director": interest score -> HOT/WARM/COLD ->
    snap shared at reply 4 / 6 / 8 (SHARE_* in config), moods, double lines.
    Set SNAP_USERNAME in apitest.config.txt to see the real share line.
 
