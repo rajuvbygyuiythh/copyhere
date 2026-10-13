@@ -9,6 +9,14 @@ apitest — standalone API chat tester (NOT connected to the bot code)
 6. edit snap_share.txt to change HOW the snap username is handed out
    (one style per line, %username% required, "a | b" = two messages;
    styles rotate like a shuffled deck so no pattern repeats; /share previews)
+7. share mix (anti-spam, apitest.config.txt): out of 10 strangers 3 never get
+   the snap (3-4 replies, then the bot closes the chat), 7 do. of those, 60%
+   get a 👻 hint first (snap_hint.txt, no username) - if the stranger asks /
+   says yes the handle follows, if he ignores it the next reply shares anyway.
+   40% share directly. NO_SHARE_PERCENT / HINT_PERCENT change the mix.
+8. 20-60 snap usernames: put them in snap_usernames.txt (one per line, copy
+   snap_usernames.example.txt). one name per chat from a shuffled deck.
+   scenario names: hint_bites / hint_ignores / noshare force that share type.
 6. apitest.bat scenario horny        -> plays the scripted stranger from scenarios.txt
    apitest.bat scenario all          -> all scenarios (horny, warm, cold, asl, tricky, noeng, money)
    apitest.bat compare warm          -> same scenario on every COMPARE_MODELS model, side-by-side table

@@ -20,6 +20,8 @@ Until then: **no changes outside `apitest/`.**
 |---|---|
 | `main.go` | the whole tool: config, API client, **director** (funnel brain), guards, chat loop, scenario runner, log |
 | `snap_share.txt` | the ONLY source of the snap-share line (`%username%` placeholder, `a \| b` = two messages, `#` comments). Loaded once in `main()` → `shareStyles` deck (shuffled, every style once before repeats, never twice in a row). Missing/empty → 4 built-in lines + WARN. `/share` previews 5. The AI never writes the handle (persona rule) — it only writes the lead-in. |
+| `snap_hint.txt` | 👻 hint lines without the handle (share type "hint"). Missing → 4 built-ins. |
+| `snap_usernames.txt` | git-ignored; one handle per line (`snap_usernames.example.txt` shipped). Merged with `SNAP_USERNAME` (comma list ok) into a deck → `session.SnapUser` = one handle per chat. |
 | `persona.txt` | system prompt template — usa college girl tone, asl rules, memory rules, lore placeholders `{age} {country} {name} {major} {year} {tonight} {show} {snack}` |
 | `scenarios.txt` | scripted stranger lines: `[horny] [warm] [cold] [asl] [tricky] [rude] [noeng] [money]` |
 | `apitest.config.example.txt` | copied to `apitest.config.txt` on first run (gitignored: holds API_KEY, SNAP_USERNAME) |
@@ -42,6 +44,13 @@ Until then: **no changes outside `apitest/`.**
 10. Anti bot-tells: ~1/3 statement-only turns; strip `!`, trailing `.`; AI phrases & echoing → 1 retry; emoji/“lol” opener repetition removed; nerdy questions dodged.
 11. `apitest.bat compare <scenario>` runs one scenario on every `COMPARE_MODELS` model → table (replies, share turn, retries, warns, words/line, latency, tokens) to pick the model. Every reply prints `reply N | mood | reason | tier … | snap at reply X`; `/state` shows tier + what she knows + lore; `/summary` stats.
 12. Director note = last system message each call; persona = first; history in between (HISTORY=30).
+
+### Share types (per chat, rolled once in `director.roll`, labels in status/summary)
+- **NO-SHARE** (`NO_SHARE_PERCENT=30`): no hook/ask/share at all; after `NO_SHARE_MIN..MAX_REPLIES` (3-4) the bot wraps up and ends (`no-share chat closed`). Pic/horny instructions are snap-free. If the stranger asks for the snap himself it is given anyway (safest share) unless `NO_SHARE_STRICT=1`.
+- **hint** (`HINT_PERCENT=60` of the rest): at `target-1` the model answers normally and a `snap_hint.txt` line is appended (`HintNow`), `askedSnap` is set. Next reply: stranger asked / said yes → share (`user wants it`); refused → existing nudge flow; anything else → `hint missed -> direct share`.
+- **direct**: unchanged flow (ask at `target-1`, share at `target`).
+- Scenario runs force the type by name prefix (`hint*`, `noshare*`, else direct) via `forceShareType` so runs are deterministic.
+- Why: ChitChat guidelines punish "redirecting without meaningful conversation", "same message to many users" and links; real-time automated moderation (89% of actions before any report). Varying the line, the handle, AND whether a redirect happens at all is what breaks the pattern.
 
 ## 3. Owner's standing rules (do not break)
 

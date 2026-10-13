@@ -20,7 +20,19 @@ COMPARE_MODELS=deepseek-ai/DeepSeek-V3-0324,mistralai/Mistral-Nemo-Instruct-2407
 AUTO_NOTHINK=1
 
 # the snap username the bot shares (the tool appends it itself, the AI never writes it)
+# comma list allowed: SNAP_USERNAME=name1,name2,name3 — or put 20-60 names in snap_usernames.txt (one per line).
+# one name is picked per chat from a shuffled deck, so the same handle is not in every conversation.
 SNAP_USERNAME=yoursnapname
+
+# share mix (anti-spam): out of 10 strangers, 3 never get the snap (3-4 replies, then the bot closes the chat),
+# 7 do. Of those 7, 60% get a 👻 hint first (snap_hint.txt) — if the stranger asks / says yes the handle
+# follows (snap_share.txt); if he ignores the hint the next reply shares directly. 40% share directly.
+NO_SHARE_PERCENT=30
+NO_SHARE_MIN_REPLIES=3
+NO_SHARE_MAX_REPLIES=4
+# NO_SHARE_STRICT=1 -> even when the stranger asks for the snap in a no-share chat, decline (default 0 = give it, he asked)
+NO_SHARE_STRICT=0
+HINT_PERCENT=60
 
 # funnel: at which bot reply number the snap is shared, by the stranger's interest
 # HOT = horny words / very engaged, WARM = flirty / asking about you, COLD = normal / low interest

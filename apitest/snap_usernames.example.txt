@@ -1,0 +1,9 @@
+# snap_usernames.txt - one snap username per line (20-60 is fine).
+# The tool picks ONE per chat from a shuffled deck (every name once before
+# any repeats), so the same handle is not pasted into every conversation.
+# Copy this file to snap_usernames.txt and put your real names in it.
+# (snap_usernames.txt stays on your PC - it is git-ignored.)
+# SNAP_USERNAME= in apitest.config.txt still works (comma list allowed) and is merged with this file.
+yoursnapname1
+yoursnapname2
+yoursnapname3

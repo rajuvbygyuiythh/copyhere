@@ -60,3 +60,30 @@ hey
 m 25
 do u have onlyfans
 ill pay u
+
+# hint type: the stranger bites on the 👻 hint (run a few times — the share type is rolled per chat,
+# "scenario" forces a share chat; the status line tells you whether this run was hint or direct)
+[hint_bites]
+hey
+m 24
+ur cute
+u horny rn?
+whats ur snap
+added
+
+# hint type: the stranger ignores the hint -> next reply shares directly
+[hint_ignores]
+hi
+m 21
+ur cute
+u horny rn?
+im from texas lol
+cool
+
+# no-share type: 3-4 replies, then the bot closes the chat without ever mentioning snap
+[noshare]
+hey
+m 23
+chilling, u?
+u horny?
+whats ur snap

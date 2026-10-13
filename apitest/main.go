@@ -45,13 +45,21 @@ type config struct {
 	AgeMax       int
 	Countries    []string
 	SnapUsername string
-	ShareHot     int // bot reply number at which a HOT user gets the snap
-	ShareWarm    int
-	ShareCold    int
-	ShowPrompt   bool
-	ExtraJSON    map[string]any
-	Models       []string // COMPARE_MODELS for `apitest compare <scenario>`
-	AutoNoThink  bool     // AUTO_NOTHINK (default 1): send thinking-off fields for known families
+	// SnapUsernames: all handles (SNAP_USERNAME comma list + snap_usernames.txt);
+	// one is picked per chat from a shuffled deck so the same string is not in every chat.
+	SnapUsernames  []string
+	HintPercent    int // % of share chats that hint first (👻) and only share when the stranger bites / next reply
+	NoSharePercent int // % of chats where NO snap is ever offered: 3-4 replies, then close
+	NoShareMin     int // bot replies before a no-share chat is closed (random in [min,max])
+	NoShareMax     int
+	NoShareStrict  bool // 1 = even if the stranger asks for the snap in a no-share chat, don't give it
+	ShareHot       int  // bot reply number at which a HOT user gets the snap
+	ShareWarm      int
+	ShareCold      int
+	ShowPrompt     bool
+	ExtraJSON      map[string]any
+	Models         []string // COMPARE_MODELS for `apitest compare <scenario>`
+	AutoNoThink    bool     // AUTO_NOTHINK (default 1): send thinking-off fields for known families
 }
 
 type message struct {
@@ -183,7 +191,31 @@ type shareDeck struct {
 	source string
 }
 
-var shareStyles *shareDeck // loaded once in main from snap_share.txt
+var (
+	shareStyles *shareDeck // loaded once in main from snap_share.txt (handle lines)
+	hintStyles  *shareDeck // snap_hint.txt (👻 hints, no handle)
+	snapNames   *shareDeck // snap_usernames.txt + SNAP_USERNAME (one handle per chat)
+)
+
+// defaultHintLines are used when snap_hint.txt is missing or empty.
+var defaultHintLines = []string{
+	"im barely on here tbh, mostly on the ghost app 👻",
+	"u use 👻?",
+	"this site lags so bad lol, i live on 👻",
+	"lets chat 👻 👈👈",
+}
+
+// nextSnapUser picks the handle for one chat: shuffled deck over all
+// configured usernames so the same string is not in every conversation.
+func nextSnapUser(cfg config, rng *rand.Rand) string {
+	if snapNames != nil && snapNames.count() > 0 {
+		return snapNames.next(rng, "")[0]
+	}
+	if len(cfg.SnapUsernames) > 0 {
+		return cfg.SnapUsernames[rng.Intn(len(cfg.SnapUsernames))]
+	}
+	return orDefault(cfg.SnapUsername, "yoursnapname")
+}
 
 func newShareDeck(styles [][]string, source string) *shareDeck {
 	return &shareDeck{styles: styles, last: -1, source: source}
@@ -246,6 +278,13 @@ func splitShareStyles(raw []string) [][]string {
 // loadShareStyles reads snap_share.txt. Lines without %username% are skipped
 // (reported in warns) because a share line without the handle is useless.
 func loadShareStyles(path string) (styles [][]string, warns []string, err error) {
+	return loadStyleFile(path, true)
+}
+
+// loadStyleFile reads one style-per-line text files (snap_share.txt,
+// snap_hint.txt, snap_usernames.txt): blank lines and # comments ignored,
+// "a | b" = several messages, optional %username% requirement.
+func loadStyleFile(path string, needPlaceholder bool) (styles [][]string, warns []string, err error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, nil, err
@@ -256,8 +295,8 @@ func loadShareStyles(path string) (styles [][]string, warns []string, err error)
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		if !strings.Contains(line, usernamePlaceholder) {
-			warns = append(warns, fmt.Sprintf("snap_share.txt line %d skipped: no %s placeholder: %q", i+1, usernamePlaceholder, line))
+		if needPlaceholder && !strings.Contains(line, usernamePlaceholder) {
+			warns = append(warns, fmt.Sprintf("%s line %d skipped: no %s placeholder: %q", filepath.Base(path), i+1, usernamePlaceholder, line))
 			continue
 		}
 		raw = append(raw, line)
@@ -265,24 +304,57 @@ func loadShareStyles(path string) (styles [][]string, warns []string, err error)
 	return splitShareStyles(raw), warns, nil
 }
 
-// initShareStyles loads snap_share.txt next to the exe, falling back to the
-// built-in list with a warning.
-func initShareStyles(dir string) {
-	path := filepath.Join(dir, "snap_share.txt")
-	styles, warns, err := loadShareStyles(path)
+// initShareStyles loads snap_share.txt, snap_hint.txt and snap_usernames.txt
+// next to the exe, falling back to the built-in lists with a warning.
+func initShareStyles(dir string, cfg *config) {
+	shareStyles = loadDeck(filepath.Join(dir, "snap_share.txt"), true, defaultShareLines)
+	hintStyles = loadDeck(filepath.Join(dir, "snap_hint.txt"), false, defaultHintLines)
+
+	// usernames: file lines + SNAP_USERNAME list, de-duplicated, "@" stripped
+	seen := map[string]bool{}
+	var names [][]string
+	add := func(u string) {
+		u = strings.TrimPrefix(strings.TrimSpace(u), "@")
+		if u != "" && !seen[u] {
+			seen[u] = true
+			names = append(names, []string{u})
+		}
+	}
+	if styles, _, err := loadStyleFile(filepath.Join(dir, "snap_usernames.txt"), false); err == nil {
+		for _, st := range styles {
+			add(strings.Join(st, "")) // a username never contains "|"
+		}
+	}
+	for _, u := range cfg.SnapUsernames {
+		add(u)
+	}
+	cfg.SnapUsernames = cfg.SnapUsernames[:0]
+	for _, n := range names {
+		cfg.SnapUsernames = append(cfg.SnapUsernames, n[0])
+	}
+	if len(names) > 0 {
+		cfg.SnapUsername = names[0][0]
+		snapNames = newShareDeck(names, "usernames")
+	} else {
+		fmt.Println("     WARN: no snap username set (SNAP_USERNAME= in apitest.config.txt or snap_usernames.txt) - using 'yoursnapname'")
+	}
+}
+
+func loadDeck(path string, needPlaceholder bool, fallback []string) *shareDeck {
+	styles, warns, err := loadStyleFile(path, needPlaceholder)
 	for _, w := range warns {
 		fmt.Println("     WARN: " + w)
 	}
+	name := filepath.Base(path)
 	switch {
 	case err != nil:
-		fmt.Printf("     WARN: %s not found (%v) - using %d built-in snap styles\n", path, err, len(defaultShareLines))
-		shareStyles = newShareDeck(splitShareStyles(defaultShareLines), "built-in")
+		fmt.Printf("     WARN: %s not found - using %d built-in lines\n", path, len(fallback))
+		return newShareDeck(splitShareStyles(fallback), "built-in")
 	case len(styles) == 0:
-		fmt.Printf("     WARN: %s has no usable lines - using %d built-in snap styles\n", path, len(defaultShareLines))
-		shareStyles = newShareDeck(splitShareStyles(defaultShareLines), "built-in")
-	default:
-		shareStyles = newShareDeck(styles, "snap_share.txt")
+		fmt.Printf("     WARN: %s has no usable lines - using %d built-in lines\n", path, len(fallback))
+		return newShareDeck(splitShareStyles(fallback), "built-in")
 	}
+	return newShareDeck(styles, name)
 }
 
 type director struct {
@@ -295,6 +367,13 @@ type director struct {
 	userGender string
 	askedSnap  bool
 	askedTurn  int
+	// per-chat roll (done on the first plan): share type for this stranger
+	rolled     bool
+	noShare    bool // 30%: never offer the snap, close after bailTurn replies
+	hintMode   bool // 60% of share chats: 👻 hint first, handle when they bite / next reply
+	hinted     bool
+	hintTurn   int
+	bailTurn   int
 	nudges     int
 	hesitated  bool
 	shared     bool
@@ -348,6 +427,7 @@ type plan struct {
 	Instruction string
 	Double      bool
 	ShareNow    bool // append the username line after the model's lead-in
+	HintNow     bool // append a snap_hint.txt line (no username) after the model's reply
 	EndAfter    bool // conversation ends after this reply
 	Fixed       string
 	Why         string // short reason shown in the status line
@@ -589,8 +669,44 @@ func (d *director) mood(turn int) string {
 	return m
 }
 
+// roll decides once per stranger how this chat ends: no snap at all (30%),
+// hint-first (60% of the rest) or direct share. Done lazily so tests can
+// override the fields before the first plan.
+func (d *director) roll(cfg config) {
+	if d.rolled {
+		return
+	}
+	d.rolled = true
+	d.noShare = d.rng.Intn(100) < cfg.NoSharePercent
+	d.hintMode = !d.noShare && d.rng.Intn(100) < cfg.HintPercent
+	lo, hi := cfg.NoShareMin, cfg.NoShareMax
+	if lo < 1 {
+		lo = 1
+	}
+	if hi < lo {
+		hi = lo
+	}
+	d.bailTurn = lo + d.rng.Intn(hi-lo+1)
+}
+
+// shareType is the short label used in status / summary lines.
+func (d *director) shareType() string {
+	switch {
+	case !d.rolled:
+		return "?"
+	case d.noShare:
+		return fmt.Sprintf("NO-SHARE (close after reply %d)", d.bailTurn)
+	case d.hintMode && d.hinted:
+		return fmt.Sprintf("hint (sent reply %d)", d.hintTurn)
+	case d.hintMode:
+		return "hint"
+	}
+	return "direct"
+}
+
 // plan decides what bot reply number `turn` must do.
 func (d *director) plan(cfg config, turn int, userText string) plan {
+	d.roll(cfg)
 	p := plan{Mood: d.mood(turn)}
 	base := "reply to exactly what they just said"
 	switch {
@@ -661,49 +777,73 @@ func (d *director) plan(cfg config, turn int, userText string) plan {
 		return plan{Mood: p.Mood, Instruction: base + ". remind them casually to add you on snap (do NOT write the username, it was already sent). one short line.", Why: "remind"}
 	}
 
-	// user asks for the snap / pic / says yes after the ask -> share now ---
-	if d.userAskedSnap && turn == 1 {
-		d.wantsSnapEarly = true
-		return plan{Mood: "teasing", Instruction: "their very first message asks for your snap: tease them for being fast ('lol slow down, who even r u') and ask their asl. one line, NO username.", Why: "snap asked on msg 1 -> slow down"}
-	}
-	if d.userAskedSnap || d.wantsSnapEarly || (d.askedSnap && (yesRe.MatchString(strings.ToLower(userText)) || d.userPicAsk)) {
-		return d.sharePlan(turn, p.Mood, "they want your snap: say something short and playful like 'ok fine' or 'took u long enough'. one line, NO username, no question.", "user wants it")
-	}
-	if d.hesitated && !d.userRefused {
-		return d.sharePlan(turn, p.Mood, base+". then just drop it casually like 'anyway here' / 'just add me lol'. one short line, NO username, no question.", "share after reassure")
-	}
-	// hesitation after the ask ("idk", "why") -> reassure once, share next turn
-	if d.userHesitant && !d.hesitated {
-		d.hesitated = true
-		return plan{Mood: "playful", Instruction: base + ". they are unsure about snap: reassure casually (it's just easier to talk there, u barely open this app). one short line, NO username, no question.", Why: "hesitant -> reassure"}
-	}
-	// refusal after the ask -> one nudge, then let it go ------------------
-	if d.userRefused {
-		if d.nudges == 0 {
-			d.nudges++
-			return plan{Mood: "teasing", Instruction: "they said no to snap: tease them lightly to add you anyway, say u are barely on this app. one short line, NO username.", Why: "refused -> nudge"}
-		}
-		d.ended, d.endReason = true, "refused twice"
-		return plan{Mood: "friendly", Instruction: "they really don't want snap: no worries, say bye nicely. one short line.", EndAfter: true, Why: "refused twice"}
-	}
-
 	target := d.shareTurn(cfg)
-	switch {
-	case turn >= target && (d.askedSnap || d.tier == tierHot):
-		// share turn: the model writes the lead-in, we append the username
-		return d.sharePlan(turn, p.Mood, base+". then say u are moving to snap because this app is boring / u barely check it. one short line, NO username, no question.", "share turn")
-	case turn >= target-1 && !d.askedSnap:
-		// (tier may have jumped late: ask now, share next reply)
-		d.askedSnap, d.askedTurn = true, turn
-		p.Why = "ask snap"
-		if d.lastDouble == turn-1 {
-			p.Instruction = base + " and in the same line ask if they have snapchat ('u got snap?' style). one line."
+	if d.noShare {
+		target = 99 // no hook, no ask, no share in this chat
+		switch {
+		case d.userAskedSnap && !cfg.NoShareStrict:
+			// they asked themselves: the safest share there is, take it
+			d.noShare = false
+			return d.sharePlan(turn, p.Mood, "they want your snap: say something short and playful like 'ok fine'. one line, NO username, no question.", "user wants it (no-share chat)")
+		case d.userAskedSnap:
+			return plan{Mood: "playful", Instruction: base + ". they ask for your snap: say u don't really give it out on here, casual, one short line, no question.", Why: "no-share chat -> decline"}
+		case turn >= d.bailTurn:
+			d.ended, d.endReason = true, "no-share chat closed"
+			return plan{Mood: p.Mood, Instruction: base + ". then wrap it up casually: u gotta go / gonna sleep / ttyl. one short line, no question, do NOT mention snap or any app.", EndAfter: true, Why: fmt.Sprintf("no-share chat -> close (reply %d)", d.bailTurn)}
+		}
+	} else {
+		// user asks for the snap / pic / says yes after the ask -> share now ---
+		if d.userAskedSnap && turn == 1 {
+			d.wantsSnapEarly = true
+			return plan{Mood: "teasing", Instruction: "their very first message asks for your snap: tease them for being fast ('lol slow down, who even r u') and ask their asl. one line, NO username.", Why: "snap asked on msg 1 -> slow down"}
+		}
+		if d.userAskedSnap || d.wantsSnapEarly || (d.askedSnap && (yesRe.MatchString(strings.ToLower(userText)) || d.userPicAsk)) {
+			return d.sharePlan(turn, p.Mood, "they want your snap: say something short and playful like 'ok fine' or 'took u long enough'. one line, NO username, no question.", "user wants it")
+		}
+		if d.hesitated && !d.userRefused {
+			return d.sharePlan(turn, p.Mood, base+". then just drop it casually like 'anyway here' / 'just add me lol'. one short line, NO username, no question.", "share after reassure")
+		}
+		// hesitation after the ask ("idk", "why") -> reassure once, share next turn
+		if d.userHesitant && !d.hesitated {
+			d.hesitated = true
+			return plan{Mood: "playful", Instruction: base + ". they are unsure about snap: reassure casually (it's just easier to talk there, u barely open this app). one short line, NO username, no question.", Why: "hesitant -> reassure"}
+		}
+		// refusal after the ask -> one nudge, then let it go ------------------
+		if d.userRefused {
+			if d.nudges == 0 {
+				d.nudges++
+				return plan{Mood: "teasing", Instruction: "they said no to snap: tease them lightly to add you anyway, say u are barely on this app. one short line, NO username.", Why: "refused -> nudge"}
+			}
+			d.ended, d.endReason = true, "refused twice"
+			return plan{Mood: "friendly", Instruction: "they really don't want snap: no worries, say bye nicely. one short line.", EndAfter: true, Why: "refused twice"}
+		}
+
+		switch {
+		case d.hintMode && d.hinted:
+			// hint went out last reply and they did not bite (a bite is handled above): direct share now
+			return d.sharePlan(turn, p.Mood, base+". then say u are moving to snap because u barely check this app. one short line, NO username, no question.", "hint missed -> direct share")
+		case d.hintMode && turn >= target-1:
+			// hint turn: the model answers normally, we append the 👻 hint line (no username)
+			d.hinted, d.hintTurn = true, turn
+			d.askedSnap, d.askedTurn = true, turn
+			d.lastDouble = turn
+			return plan{Mood: p.Mood, Instruction: base + ". one short line, no question, do NOT mention snap or any app.", HintNow: true, Why: "hint"}
+		case turn >= target && (d.askedSnap || d.tier == tierHot):
+			// share turn: the model writes the lead-in, we append the username
+			return d.sharePlan(turn, p.Mood, base+". then say u are moving to snap because this app is boring / u barely check it. one short line, NO username, no question.", "share turn")
+		case turn >= target-1 && !d.askedSnap:
+			// (tier may have jumped late: ask now, share next reply)
+			d.askedSnap, d.askedTurn = true, turn
+			p.Why = "ask snap"
+			if d.lastDouble == turn-1 {
+				p.Instruction = base + " and in the same line ask if they have snapchat ('u got snap?' style). one line."
+				return p
+			}
+			p.Instruction = base + ". then ask if they have snapchat (just 'u got snap?' style). two lines: first the answer, second the question."
+			p.Double = true
+			d.lastDouble = turn
 			return p
 		}
-		p.Instruction = base + ". then ask if they have snapchat (just 'u got snap?' style). two lines: first the answer, second the question."
-		p.Double = true
-		d.lastDouble = turn
-		return p
 	}
 
 	// middle chat, step by step -------------------------------------------
@@ -721,9 +861,15 @@ func (d *director) plan(cfg config, turn int, userText string) plan {
 	case d.userBotQ:
 		p.Why = "bot question"
 		p.Instruction = base + ". they ask if u are real / a bot: laugh it off in 3-6 words (like 'lol im real') and flip it back on them with one short question. never over-explain."
+	case d.userPicAsk && d.noShare:
+		p.Why = "pic request (no-share)"
+		p.Instruction = base + ". they want a pic: say not on here lol, playful, no app names, no question."
 	case d.userPicAsk:
 		p.Why = "pic request"
 		p.Instruction = base + ". they want a pic: say not on this app lol, u only send pics on snap. don't ask for snap yet, no question."
+	case d.userHorny && d.noShare:
+		p.Why = "horny (no-share)"
+		p.Instruction = base + ". they are being horny: tease back, playful and confident, suggestive but NOT explicit. do NOT mention snap or any app."
 	case d.userHorny:
 		p.Why = "horny"
 		p.Instruction = base + ". they are being horny: tease back, playful and confident, suggestive but NOT explicit, don't shut them down. hint it would be more fun on snap, but do NOT ask for snap yet."
@@ -837,7 +983,10 @@ func (d *director) status(cfg config, turn int) string {
 	if d.coldStreak >= 2 {
 		extra = fmt.Sprintf(" cold=%d", d.coldStreak)
 	}
-	return fmt.Sprintf("tier=%s score=%d | snap at reply %d (asked=%v)%s", d.tier, d.score, d.shareTurn(cfg), d.askedSnap, extra)
+	if d.noShare {
+		return fmt.Sprintf("tier=%s score=%d | %s%s", d.tier, d.score, d.shareType(), extra)
+	}
+	return fmt.Sprintf("tier=%s score=%d | %s | snap at reply %d (asked=%v)%s", d.tier, d.score, d.shareType(), d.shareTurn(cfg), d.askedSnap, extra)
 }
 
 // replyProblem checks the generated lines against the plan; non-empty = retry once.
@@ -901,6 +1050,7 @@ type session struct {
 	History  []message
 	Turns    int
 	Director *director
+	SnapUser string // the handle used in this chat (one per chat from the username deck)
 }
 
 func newSession(cfg config, personaTemplate string, rng *rand.Rand) *session {
@@ -908,7 +1058,9 @@ func newSession(cfg config, personaTemplate string, rng *rand.Rand) *session {
 		Age:      cfg.AgeMin + rng.Intn(cfg.AgeMax-cfg.AgeMin+1),
 		Country:  cfg.Countries[rng.Intn(len(cfg.Countries))],
 		Director: newDirector(rng),
+		SnapUser: nextSnapUser(cfg, rng),
 	}
+	s.Director.roll(cfg)
 	pick := func(xs []string) string { return xs[rng.Intn(len(xs))] }
 	s.Name, s.Major, s.Year = pick(lorePool.Names), pick(lorePool.Majors), pick(lorePool.Years)
 	s.Tonight, s.Show, s.Snack = pick(lorePool.Tonight), pick(lorePool.Shows), pick(lorePool.Snacks)
@@ -954,7 +1106,7 @@ func main() {
 	if err != nil {
 		fatal(err)
 	}
-	initShareStyles(dir)
+	initShareStyles(dir, &cfg)
 	mode := "chat"
 	if len(os.Args) > 1 {
 		mode = strings.ToLower(os.Args[1])
@@ -988,6 +1140,8 @@ type stats struct {
 	Seconds                                        float64
 	ShareTurn                                      int
 	ShareStyle                                     string
+	HintTurn                                       int
+	HintStyle                                      string
 }
 
 type runner struct {
@@ -1035,8 +1189,12 @@ func (r *runner) summary() {
 	}
 	share := "not shared"
 	if r.st.ShareTurn > 0 {
-		share = fmt.Sprintf("shared on reply %d (%q)", r.st.ShareTurn, r.st.ShareStyle)
+		share = fmt.Sprintf("shared on reply %d as %s (%q)", r.st.ShareTurn, r.s.SnapUser, r.st.ShareStyle)
 	}
+	if r.st.HintTurn > 0 {
+		share += fmt.Sprintf(" | hint on reply %d (%q)", r.st.HintTurn, r.st.HintStyle)
+	}
+	share += " | type " + r.s.Director.shareType()
 	avgW := float64(r.st.Words) / float64(max(r.st.Lines, 1))
 	line := fmt.Sprintf("--- summary: %d replies | %s | tier %s | retries %d | warns %d | doubles %d | avg %.1f words/line | %.1fs avg | %d+%d tokens | %s ---",
 		r.st.Replies, share, r.s.Director.tier, r.st.Retries, r.st.Warns, r.st.Doubles, avgW, r.st.Seconds/float64(r.st.Replies), r.st.PromptTok, r.st.ComplTok, r.s.Director.status(r.cfg, r.s.Turns+1))
@@ -1117,12 +1275,14 @@ func (r *runner) step(text string) {
 		}
 		lines = polish(lines, s.History)
 	}
+	if p.HintNow {
+		hintLines := hintStyles.next(r.rng, "")
+		lines = append(lines, hintLines...)
+		r.st.HintTurn = turn
+		r.st.HintStyle = strings.Join(hintLines, " | ")
+	}
 	if p.ShareNow {
-		user := cfg.SnapUsername
-		if user == "" {
-			user = "yoursnapname"
-		}
-		shareLines := shareStyles.next(r.rng, user)
+		shareLines := shareStyles.next(r.rng, r.s.SnapUser)
 		lines = append(lines, shareLines...)
 		if r.st.ShareTurn == 0 {
 			r.st.ShareTurn = turn
@@ -1176,7 +1336,8 @@ func chatLoop(cfg config, personaTemplate string) {
 			return
 		case "/new":
 			r.reset()
-			fmt.Printf("--- new chat: persona f %d from %s (%s) | moods: %s ---\n", r.s.Age, r.s.Country, r.s.Name, strings.Join(r.s.Director.moods, " > "))
+			r.s.Director.roll(r.cfg)
+			fmt.Printf("--- new chat: persona f %d from %s (%s) | type %s | moods: %s ---\n", r.s.Age, r.s.Country, r.s.Name, r.s.Director.shareType(), strings.Join(r.s.Director.moods, " > "))
 			continue
 		case "/prompt":
 			r.cfg.ShowPrompt = !r.cfg.ShowPrompt
@@ -1198,10 +1359,14 @@ func chatLoop(cfg config, personaTemplate string) {
 			r.summary()
 			continue
 		case "/share", "/snap":
-			user := orDefault(cfg.SnapUsername, "yoursnapname")
-			fmt.Printf("--- %d snap styles from %s, 5 previews (deck order, no repeats until all used) ---\n", shareStyles.count(), shareStyles.name())
+			fmt.Printf("--- this chat: type %s, username %s ---\n", s.Director.shareType(), s.SnapUser)
+			fmt.Printf("--- %d share styles from %s, 5 previews (deck order, no repeats until all used) ---\n", shareStyles.count(), shareStyles.name())
 			for i := 0; i < 5; i++ {
-				fmt.Printf("  %s\n", strings.Join(shareStyles.next(r.rng, user), "  ||  "))
+				fmt.Printf("  %s\n", strings.Join(shareStyles.next(r.rng, s.SnapUser), "  ||  "))
+			}
+			fmt.Printf("--- %d hint styles from %s, 5 previews ---\n", hintStyles.count(), hintStyles.name())
+			for i := 0; i < 5; i++ {
+				fmt.Printf("  %s\n", strings.Join(hintStyles.next(r.rng, ""), "  ||  "))
 			}
 			continue
 		case "/help":
@@ -1240,8 +1405,9 @@ func scenarioRun(cfg config, personaTemplate string, name string) {
 		if i > 0 {
 			r.reset()
 		}
-		fmt.Printf("\n################ scenario: %s  (persona f %d %s, name %s) ################\n", n, r.s.Age, r.s.Country, r.s.Name)
-		r.logLine("### scenario %s", n)
+		forceShareType(r.s.Director, r.cfg, n)
+		fmt.Printf("\n################ scenario: %s  (persona f %d %s, name %s, type %s) ################\n", n, r.s.Age, r.s.Country, r.s.Name, r.s.Director.shareType())
+		r.logLine("### scenario %s (type %s)", n, r.s.Director.shareType())
 		for _, line := range scen[n] {
 			if r.s.Director.ended {
 				fmt.Printf("you> %s\n     (chat already ended: %s)\n", line, r.s.Director.endReason)
@@ -1254,6 +1420,19 @@ func scenarioRun(cfg config, personaTemplate string, name string) {
 	r.summary()
 	r.close()
 	fmt.Println("\n(full transcript appended to apitest.log — send that file for review)")
+}
+
+// forceShareType makes scenario runs deterministic: "hint*" scenarios play the
+// hint type, "noshare*" the no-share type, everything else the direct share.
+func forceShareType(d *director, cfg config, scenario string) {
+	d.roll(cfg)
+	d.noShare, d.hintMode = false, false
+	switch {
+	case strings.HasPrefix(scenario, "hint"):
+		d.hintMode = true
+	case strings.HasPrefix(scenario, "noshare"):
+		d.noShare = true
+	}
 }
 
 // compareRun plays ONE scenario on every model in COMPARE_MODELS and prints a table.
@@ -1283,7 +1462,8 @@ func compareRun(cfg config, personaTemplate string, name string) {
 		c := cfg
 		c.Model = m
 		r := newRunner(c, personaTemplate)
-		fmt.Printf("\n################ model: %s | scenario: %s ################\n", m, name)
+		forceShareType(r.s.Director, c, name)
+		fmt.Printf("\n################ model: %s | scenario: %s | type %s ################\n", m, name, r.s.Director.shareType())
 		r.logLine("### compare model %s scenario %s", m, name)
 		errs := 0
 		for _, line := range lines {
@@ -1731,8 +1911,9 @@ func loadConfig(path string) (config, error) {
 		AgeMax:      25,
 		Countries:   []string{"uk", "germany", "france", "italy", "spain", "netherlands", "sweden", "poland", "ireland", "norway"},
 		ShareHot:    4,
-		ShareWarm:   6,
-		ShareCold:   8,
+		HintPercent: 60, NoSharePercent: 30, NoShareMin: 3, NoShareMax: 4,
+		ShareWarm: 6,
+		ShareCold: 8,
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -1760,8 +1941,33 @@ func loadConfig(path string) (config, error) {
 			cfg.Model = value
 		case "API_KEY":
 			cfg.APIKey = value
-		case "SNAP_USERNAME":
-			cfg.SnapUsername = strings.TrimPrefix(value, "@")
+		case "SNAP_USERNAME", "SNAP_USERNAMES":
+			for _, u := range strings.Split(value, ",") {
+				if u = strings.TrimPrefix(strings.TrimSpace(u), "@"); u != "" {
+					cfg.SnapUsernames = append(cfg.SnapUsernames, u)
+				}
+			}
+			if len(cfg.SnapUsernames) > 0 {
+				cfg.SnapUsername = cfg.SnapUsernames[0]
+			}
+		case "HINT_PERCENT":
+			if n, ok := intVal(0); ok && n <= 100 {
+				cfg.HintPercent = n
+			}
+		case "NO_SHARE_PERCENT":
+			if n, ok := intVal(0); ok && n <= 100 {
+				cfg.NoSharePercent = n
+			}
+		case "NO_SHARE_MIN_REPLIES":
+			if n, ok := intVal(1); ok {
+				cfg.NoShareMin = n
+			}
+		case "NO_SHARE_MAX_REPLIES":
+			if n, ok := intVal(1); ok {
+				cfg.NoShareMax = n
+			}
+		case "NO_SHARE_STRICT":
+			cfg.NoShareStrict = value == "1" || strings.EqualFold(value, "true")
 		case "TIMEOUT_SEC":
 			if n, ok := intVal(1); ok {
 				cfg.Timeout = time.Duration(n) * time.Second
@@ -1863,7 +2069,8 @@ func printBanner(cfg config, s *session) {
 	fmt.Printf(" api:     %s\n model:   %s\n thinking-off: %s\n", cfg.BaseURL, cfg.Model, noThinkLabel(cfg))
 	fmt.Printf(" persona: f %d from %s, name %s (only told if asked)   (persona.txt, /new = re-roll)\n", s.Age, s.Country, s.Name)
 	fmt.Printf(" snap at: HOT reply %d | WARM %d | COLD %d   username: %s\n", cfg.ShareHot, cfg.ShareWarm, cfg.ShareCold, orDefault(cfg.SnapUsername, "(set SNAP_USERNAME)"))
-	fmt.Printf(" styles:  %d snap-share styles from %s (/share = preview)\n", shareStyles.count(), shareStyles.name())
+	fmt.Printf(" styles:  %d share lines (%s) | %d hint lines (%s) | %d usernames   (/share = preview)\n", shareStyles.count(), shareStyles.name(), hintStyles.count(), hintStyles.name(), max(len(cfg.SnapUsernames), 1))
+	fmt.Printf(" mix:     %d%% chats NO snap (close after %d-%d replies) | of the rest %d%% hint first, %d%% direct\n", cfg.NoSharePercent, cfg.NoShareMin, cfg.NoShareMax, cfg.HintPercent, 100-cfg.HintPercent)
 	fmt.Printf(" moods:   %s\n", strings.Join(s.Director.moods, " > "))
 	fmt.Println(" type a message, or /help for commands")
 	fmt.Println("==========================================================")
@@ -1876,7 +2083,7 @@ func printHelp() {
 	fmt.Println(" /prompt   toggle printing the full request (incl. director note) before each call")
 	fmt.Println(" /history  show the conversation memory sent to the model")
 	fmt.Println(" /summary  stats of this chat so far (retries, tokens, share turn)")
-	fmt.Println(" /share    preview 5 snap-share styles from snap_share.txt")
+	fmt.Println(" /share    this chat's share type + previews from snap_share.txt / snap_hint.txt")
 	fmt.Println(" /quit     exit")
 }
 
