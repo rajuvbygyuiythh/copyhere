@@ -6,19 +6,14 @@ API_KEY=your-featherless-api-key
 # note: meta-llama/* models on Featherless are GATED (HTTP 403) until you accept Meta's licence on HuggingFace.
 # non-gated alternatives: Qwen/Qwen2.5-72B-Instruct, mistralai/Mistral-Nemo-Instruct-2407, NousResearch/Hermes-3-Llama-3.1-70B
 
-# apitest.bat compare warm  -> plays one scenario on each of these models and prints a comparison table
-# all ids below were confirmed in the featherless catalog (Warm = already loaded = fast), non-gated, NO thinking:
-#   deepseek-ai/DeepSeek-V3-0324            685B  most natural casual english            (top pick)
-#   mistralai/Mistral-Nemo-Instruct-2407    12B   very casual / human, fast, cheap        (best small one)
-#   NousResearch/Hermes-3-Llama-3.1-70B     70B   ungated Llama-3.1, stays in character
-#   mistralai/Mistral-Large-Instruct-2411   123B  strong, follows the director note well
-#   Qwen/Qwen2.5-72B-Instruct               72B   reliable instruction following
-# roleplay flavour (more flirty, less filtered - watch the RETRY count):
-#   TheDrummer/Rocinante-X-12B-v1, Sao10K/L3-8B-Stheno-v3.2, dphn/Dolphin3.0-Llama3.1-8B
-# cheap backups: NousResearch/Hermes-3-Llama-3.1-8B, mistralai/Mistral-7B-Instruct-v0.3 (4K ctx)
-# 2026 hybrid-thinking families also work (tool switches thinking off): Qwen/Qwen3.8-27B, zai-org/GLM-5.3-Flash
-# AVOID: meta-llama/* and google/gemma-* (gated -> HTTP 403), *-R1-Distill-*, *Thinking*, gpt-oss-*, *-Base-* / models without "Instruct"
-COMPARE_MODELS=deepseek-ai/DeepSeek-V3-0324,mistralai/Mistral-Nemo-Instruct-2407,NousResearch/Hermes-3-Llama-3.1-70B,mistralai/Mistral-Large-Instruct-2411,Qwen/Qwen2.5-72B-Instruct
+# apitest.bat compare warm  -> plays one scenario on each of these 3 models, one after another, and prints a table.
+# full ids exactly as in the featherless catalog (org/Name). only used by "compare"; normal chat uses MODEL above.
+#   deepseek-ai/DeepSeek-V3-0324           685B  most natural casual english, no thinking
+#   mistralai/Mistral-Nemo-Instruct-2407   12B   very casual / human, fast, no thinking
+#   NousResearch/Hermes-3-Llama-3.1-70B    70B   ungated Llama-3.1, stays in character, no thinking
+COMPARE_MODELS=deepseek-ai/DeepSeek-V3-0324,mistralai/Mistral-Nemo-Instruct-2407,NousResearch/Hermes-3-Llama-3.1-70B
+# other confirmed options if one of them fails: mistralai/Mistral-Large-Instruct-2411, Qwen/Qwen2.5-72B-Instruct
+# AVOID: meta-llama/* and google/gemma-* (gated -> HTTP 403), *-R1-Distill-*, *Thinking*, gpt-oss-*, *-Base-* / names without "Instruct"
 
 # AUTO_NOTHINK=1 (default): for Qwen3*/GLM-5*/DeepSeek-V4*/Kimi-K3/gpt-oss the tool adds the "no thinking" request fields itself.
 # set 0 to send nothing extra. EXTRA_JSON (below) always overrides.
