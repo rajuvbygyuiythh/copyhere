@@ -85,6 +85,6 @@ tricky ends on "i dont have snap", rude/money/noeng END.
 
 * `deepseek-ai/DeepSeek-V4.1-Flash` is a reasoning model: with small
   MAX_TOKENS it returns empty content (`finish=length`). Tool detects it and
-  prints the FIX hint. * `meta-llama/*` on Featherless → HTTP 403 "gated model" until the owner accepts Meta's licence on HuggingFace. Use Qwen2.5-72B-Instruct / Mistral-Nemo / Hermes-3-Llama-3.1-70B instead.
+  prints the FIX hint. * `meta-llama/*` on Featherless → HTTP 403 "gated model" until the owner accepts Meta's licence on HuggingFace. Confirmed non-gated, non-thinking chat models on Featherless: DeepSeek-V3-0324, Mistral-Nemo-Instruct-2407, Hermes-3-Llama-3.1-70B, Mistral-Large-Instruct-2411, Qwen2.5-72B-Instruct (list in config example, `COMPARE_MODELS`).
 * Real LLM APIs are unreachable from the sandbox — test with mocks, the owner
   tests for real on Windows.
