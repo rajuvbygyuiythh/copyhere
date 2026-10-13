@@ -108,3 +108,7 @@ Format: date · commit(s) · what · why/notes. Older history condensed.
   Browser page checkbox, docs/BROWSER_MODE.md, tests). Real compile of
   rod.go/chromedp.go made possible via `memory/scripts/browser_pkg_check.sh`.
   Next: owner builds on Windows, runs with Browser mode on, pastes logs.
+- Owner: "recheck everything, final". Deep pass found match-chat reply wait is
+  realtime-only → browser_events.go poller added; hardening (mutex, pause,
+  auto-return, liveness probe); session_test stub fixed; browser_pkg_check now
+  also runs browser tests; ui_smoke.js added. Pushed + zip rebuilt.

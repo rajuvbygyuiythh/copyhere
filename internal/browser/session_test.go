@@ -29,6 +29,14 @@ func (s sessionBackendStub) Fetch(context.Context, FetchRequest) (FetchResponse,
 	return s.response, s.err
 }
 
+func (s sessionBackendStub) Navigate(context.Context, string) error {
+	return nil
+}
+
+func (s sessionBackendStub) SetCookies(context.Context, []model.Cookie) error {
+	return nil
+}
+
 func (s sessionBackendStub) Close() error {
 	return nil
 }

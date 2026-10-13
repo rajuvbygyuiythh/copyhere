@@ -53,4 +53,4 @@ replace github.com/chromedp/sysutil => /tmp/deps/sysutil
 replace github.com/go-json-experiment/json => /tmp/deps/json
 replace golang.org/x/sys => /tmp/deps/sys
 MOD
-go vet ./internal/browser/ && GOOS=windows go build ./internal/browser/ && echo "internal/browser (rod.go + chromedp.go) REAL BUILD OK"
+go vet ./internal/browser/ && GOOS=windows go build ./internal/browser/ && cp "$REPO"/internal/browser/*_test.go internal/browser/ && go vet ./internal/browser/ && go test ./internal/browser/ -count=1 -skip TestRodBackendProxyAuth && echo "internal/browser (rod.go + chromedp.go) REAL BUILD + TESTS OK (rod launch test skipped: no Chrome here)"

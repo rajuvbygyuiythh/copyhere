@@ -122,7 +122,8 @@ func Run(ctx context.Context, cfg Config) error {
 	var realtimeEvents <-chan realtimeEvent
 	var stopRealtime context.CancelFunc
 	if bsession != nil {
-		logln(cfg, "[browser] Realtime websocket is off in Browser mode; new messages are picked up by the normal cycle.")
+		logln(cfg, "[browser] Realtime websocket is off in Browser mode; the window polls for new messages every few seconds instead.")
+		realtimeEvents = startBrowserEventPoller(ctx, cfg, bsession.client(login), currentUserID, bsession)
 	} else {
 		realtimeEvents, stopRealtime = startRealtimeListener(ctx, cfg, login, currentUserID)
 	}
@@ -153,7 +154,7 @@ func Run(ctx context.Context, cfg Config) error {
 			}
 			if errors.Is(err, errLoginExpired) && bsession != nil && ctx.Err() == nil {
 				// Browser mode: do not stop, let the owner log in again in the window.
-				login, err = bsession.relogin(ctx)
+				login, err = bsession.reloginInWindow(ctx)
 				if err != nil {
 					return err
 				}

@@ -1,4 +1,4 @@
-# 00 — RESUME BRIEF (always current; last update: 2026-10-14 (P8 phase 1 shipped), Asia/Dhaka)
+# 00 — RESUME BRIEF (always current; last update: 2026-10-14 (P8 final recheck done), Asia/Dhaka)
 
 ## Where we are (one paragraph)
 
@@ -14,6 +14,19 @@ chat from `snap_usernames.txt`. Owner tests apitest on his PC against the real
 API and pastes output; agent fixes bugs from that output.
 
 ## Last thing done (most recent turn first)
+
+00000000. **FINAL RECHECK of P8 (owner: "recheck, verify all, make it final").**
+        Found a real blocker: match-chat sequences are realtime-event-only, so
+        browser mode (socket off) would never see replies → added
+        `internal/bot/browser_events.go` poller (conversations every 3.5–5 s,
+        messages of changed convs only → matchUpdate/chatMessage/closed
+        events). Plus: fetch mutex per window, poller pause during re-login,
+        auto-navigate-back + retry on in-page fetch failure, liveness probe
+        after 3 failures, `session_test.go` stub fix, UI tag
+        "2026-10-14b · browser mode". All checks green: offline_typecheck
+        (+race on browser tests), browser_pkg_check (real rod/chromedp build +
+        tests), ui_smoke.js (jsdom). Owner's next step: Windows build + real
+        run with Browser mode on, paste `[browser]` logs.
 
 0000000. **P8 PHASE 1 SHIPPED — "Browser mode"** (Browser page checkbox
         `browser_mode`). Off = bot unchanged. On = per account one VISIBLE

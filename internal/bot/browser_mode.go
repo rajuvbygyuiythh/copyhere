@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"chitchatbot/internal/api"
@@ -47,12 +48,28 @@ var browserHeadersDropped = map[string]bool{
 	"accept-encoding": true, "connection": true, "content-length": true, "host": true,
 }
 
-// browserExecutor adapts browser.Backend to api.Executor.
+// browserExecutor adapts browser.Backend to api.Executor. mu (optional)
+// serialises in-page fetches of one window: the chat loop and the message
+// poller share the page and CDP session. appURL (optional) lets the executor
+// bring the page back to the app when an in-page fetch fails (owner clicked
+// away to another site → cross-origin fetch has no cookies). failures
+// (optional) counts consecutive errors; after a few the window is probed and
+// reported as gone if it does not answer, whatever the error text was.
 type browserExecutor struct {
-	backend browser.Backend
+	backend  browser.Backend
+	mu       *sync.Mutex
+	appURL   string
+	failures *atomic.Int32
 }
 
+// browserProbeAfterFailures = consecutive errors before a liveness probe.
+const browserProbeAfterFailures = 3
+
 func (e browserExecutor) Fetch(ctx context.Context, req api.FetchRequest) (api.FetchResponse, error) {
+	if e.mu != nil {
+		e.mu.Lock()
+		defer e.mu.Unlock()
+	}
 	headers := make(map[string]string, len(req.Headers))
 	for k, v := range req.Headers {
 		if browserHeadersDropped[strings.ToLower(strings.TrimSpace(k))] {
@@ -60,17 +77,20 @@ func (e browserExecutor) Fetch(ctx context.Context, req api.FetchRequest) (api.F
 		}
 		headers[k] = v
 	}
-	resp, err := e.backend.Fetch(ctx, browser.FetchRequest{
-		Method:  req.Method,
-		URL:     req.URL,
-		Headers: headers,
-		Body:    req.Body,
-	})
+	breq := browser.FetchRequest{Method: req.Method, URL: req.URL, Headers: headers, Body: req.Body}
+
+	resp, err := e.backend.Fetch(ctx, breq)
+	if err == nil && resp.Status == 0 && resp.StatusText == "FETCH_ERROR" && e.appURL != "" && ctx.Err() == nil {
+		// The page may have left the app (manual click). Go back once and retry.
+		if navErr := e.backend.Navigate(ctx, e.appURL); navErr == nil {
+			resp, err = e.backend.Fetch(ctx, breq)
+		}
+	}
 	if err != nil {
 		if ctx.Err() != nil {
 			return api.FetchResponse{}, ctx.Err()
 		}
-		if isBrowserGoneError(err) {
+		if isBrowserGoneError(err) || e.windowGone(ctx) {
 			return api.FetchResponse{}, fmt.Errorf("%w: %v", errBrowserGone, err)
 		}
 		return api.FetchResponse{}, err
@@ -78,9 +98,33 @@ func (e browserExecutor) Fetch(ctx context.Context, req api.FetchRequest) (api.F
 	if resp.Status == 0 && resp.StatusText == "FETCH_ERROR" {
 		// network error inside the page (offline, proxy down, page navigated
 		// away mid-request): report it as a normal request failure.
+		if e.windowGone(ctx) {
+			return api.FetchResponse{}, fmt.Errorf("%w: %s", errBrowserGone, strings.TrimSpace(resp.Text))
+		}
 		return api.FetchResponse{}, fmt.Errorf("browser fetch failed: %s", strings.TrimSpace(resp.Text))
 	}
+	if e.failures != nil {
+		e.failures.Store(0)
+	}
 	return api.FetchResponse{OK: resp.OK, Status: resp.Status, StatusText: resp.StatusText, Text: resp.Text}, nil
+}
+
+// windowGone counts a failure and, after browserProbeAfterFailures in a row,
+// asks the window for its cookies; no answer = the window is gone.
+func (e browserExecutor) windowGone(ctx context.Context) bool {
+	if e.failures == nil {
+		return false
+	}
+	if e.failures.Add(1) < browserProbeAfterFailures {
+		return false
+	}
+	probeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if _, err := e.backend.CaptureSession(probeCtx); err != nil && ctx.Err() == nil {
+		return true
+	}
+	e.failures.Store(0)
+	return false
 }
 
 // isBrowserGoneError recognises "the browser itself is gone" failures from
@@ -108,12 +152,18 @@ func isBrowserGoneError(err error) bool {
 
 // browserSession is the open window of one worker.
 type browserSession struct {
-	backend browser.Backend
-	cfg     Config
-	p       paths
-	proxy   *proxy.Entry
-	release func()
+	backend  browser.Backend
+	cfg      Config
+	p        paths
+	proxy    *proxy.Entry
+	release  func()
+	fetchMu  sync.Mutex
+	relogin  atomic.Bool  // true while waiting for a new login in the window
+	failures atomic.Int32 // consecutive in-page fetch failures
 }
+
+// paused reports whether the window is busy with a re-login.
+func (s *browserSession) paused() bool { return s.relogin.Load() }
 
 // windowSlots serialises windows per profile folder: Stop followed by a
 // quick Start must not launch a second Chrome on the same user-data-dir
@@ -214,12 +264,16 @@ func openBrowserSession(ctx context.Context, cfg Config, p paths, saved model.Lo
 
 // client returns the api client that runs inside the window.
 func (s *browserSession) client(login model.LoginInfo) *api.Client {
-	return api.NewVia(browserExecutor{backend: s.backend}, login, s.cfg.AppURL)
+	return api.NewVia(browserExecutor{backend: s.backend, mu: &s.fetchMu, appURL: s.cfg.AppURL, failures: &s.failures}, login, s.cfg.AppURL)
 }
 
 // relogin is used when the API answers 401 in browser mode: bring the
 // window back to the app and wait for the owner (or the cookies) to log in.
-func (s *browserSession) relogin(ctx context.Context) (model.LoginInfo, error) {
+func (s *browserSession) reloginInWindow(ctx context.Context) (model.LoginInfo, error) {
+	s.relogin.Store(true)
+	defer s.relogin.Store(false)
+	s.fetchMu.Lock()
+	defer s.fetchMu.Unlock()
 	logln(s.cfg, "[browser] Session expired. Log in again inside the browser window; the bot resumes automatically.")
 	if err := s.backend.Navigate(ctx, s.cfg.AppURL); err != nil {
 		if ctx.Err() != nil {
@@ -245,6 +299,8 @@ func (s *browserSession) saveAndClose(previous model.LoginInfo) {
 	if s.release != nil {
 		defer s.release()
 	}
+	s.fetchMu.Lock()
+	defer s.fetchMu.Unlock()
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 

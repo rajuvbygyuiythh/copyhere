@@ -132,8 +132,16 @@ then C, then D.
 
 ## P8 — Browser Mode (visible real browser does the chatting) — PHASE 1 SHIPPED 2026-10-14 (phases 2–3 open)
 
-**Phase 1 status: DONE** (see `docs/BROWSER_MODE.md`). Implemented exactly as
-planned plus: cookie injection via `Backend.SetCookies` for empty browser
+**Phase 1 status: DONE + final verification round 2026-10-14** (see
+`docs/BROWSER_MODE.md`). BIG BUG found & fixed in the recheck: all match-chat
+sequences wait for the partner's reply ONLY via realtimeEvents → with the
+socket off, browser mode would never have seen a reply. Fixed with
+`browser_events.go` (poll-through-window → matchUpdate/chatMessage/closed
+events, same shapes; phase 2 "realtime" is therefore effectively covered by
+polling, 3.5–5 s latency). Also added: serialised in-page fetches (mutex),
+poller pause during re-login, auto-return to app URL + retry on in-page fetch
+failure, liveness probe after 3 consecutive failures → errBrowserGone, fixed
+`session_test.go` stub for the extended interface. Implemented as planned plus: cookie injection via `Backend.SetCookies` for empty browser
 profiles, in-window re-login on 401 (worker does not stop), owner-closed
 window → only that worker stops, per-profile window slot (quick Stop→Start
 waits for the previous window), Headless forced off in browser mode, dashboard
