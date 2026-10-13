@@ -39,7 +39,7 @@ Until then: **no changes outside `apitest/`.**
 8. **Memory**: gender, age, place, name, what he's doing are parsed and put in every director note as "what they already told you … NEVER ask again". `m 21` → `f 20` (never `f 20, u?`).
 9. ASL convention: `f 21` / `m 23` short form; her name only if asked; lore fixed per chat.
 10. Anti bot-tells: ~1/3 statement-only turns; strip `!`, trailing `.`; AI phrases & echoing → 1 retry; emoji/“lol” opener repetition removed; nerdy questions dodged.
-11. Every reply prints `reply N | mood | reason | tier … | snap at reply X`; `/state` shows tier + what she knows + lore; `/summary` stats.
+11. `apitest.bat compare <scenario>` runs one scenario on every `COMPARE_MODELS` model → table (replies, share turn, retries, warns, words/line, latency, tokens) to pick the model. Every reply prints `reply N | mood | reason | tier … | snap at reply X`; `/state` shows tier + what she knows + lore; `/summary` stats.
 12. Director note = last system message each call; persona = first; history in between (HISTORY=30).
 
 ## 3. Owner's standing rules (do not break)

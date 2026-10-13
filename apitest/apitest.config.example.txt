@@ -6,6 +6,10 @@ API_KEY=your-featherless-api-key
 # note: meta-llama/* models on Featherless are GATED (HTTP 403) until you accept Meta's licence on HuggingFace.
 # non-gated alternatives: Qwen/Qwen2.5-72B-Instruct, mistralai/Mistral-Nemo-Instruct-2407, NousResearch/Hermes-3-Llama-3.1-70B
 
+# apitest.bat compare warm  -> plays one scenario on each of these models and prints a comparison table
+# (pick the exact ids from https://featherless.ai/models ; avoid meta-llama/* unless you have HF access)
+COMPARE_MODELS=Qwen/Qwen2.5-72B-Instruct,mistralai/Mistral-Nemo-Instruct-2407,NousResearch/Hermes-3-Llama-3.1-70B
+
 # the snap username the bot shares (the tool appends it itself, the AI never writes it)
 SNAP_USERNAME=yoursnapname
 

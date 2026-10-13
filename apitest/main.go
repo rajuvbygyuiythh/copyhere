@@ -50,6 +50,7 @@ type config struct {
 	ShareCold    int
 	ShowPrompt   bool
 	ExtraJSON    map[string]any
+	Models       []string // COMPARE_MODELS for `apitest compare <scenario>`
 }
 
 type message struct {
@@ -839,6 +840,12 @@ func main() {
 		ping(cfg)
 	case "chat":
 		chatLoop(cfg, personaTemplate)
+	case "compare":
+		name := ""
+		if len(os.Args) > 2 {
+			name = strings.ToLower(os.Args[2])
+		}
+		compareRun(cfg, personaTemplate, name)
 	case "scenario", "scenarios", "run":
 		name := ""
 		if len(os.Args) > 2 {
@@ -846,7 +853,7 @@ func main() {
 		}
 		scenarioRun(cfg, personaTemplate, name)
 	default:
-		fmt.Println("usage: apitest.exe [chat|ping|scenario <name|all>]")
+		fmt.Println("usage: apitest.exe [chat|ping|scenario <name|all>|compare <scenario>]")
 		os.Exit(2)
 	}
 }
@@ -1104,6 +1111,77 @@ func scenarioRun(cfg config, personaTemplate string, name string) {
 	}
 	r.summary()
 	fmt.Println("\n(full transcript appended to apitest.log — send that file for review)")
+}
+
+// compareRun plays ONE scenario on every model in COMPARE_MODELS and prints a table.
+func compareRun(cfg config, personaTemplate string, name string) {
+	if len(cfg.Models) == 0 {
+		fatal(errors.New("set COMPARE_MODELS=modelA,modelB,... in apitest.config.txt first"))
+	}
+	if name == "" {
+		name = "warm"
+	}
+	scen, err := loadScenarios(filepath.Join(exeDir(), "scenarios.txt"))
+	if err != nil {
+		fatal(err)
+	}
+	lines, ok := scen[name]
+	if !ok {
+		fatal(fmt.Errorf("scenario %q not in scenarios.txt", name))
+	}
+	type row struct {
+		model string
+		st    stats
+		errs  int
+		end   string
+	}
+	var rows []row
+	for _, m := range cfg.Models {
+		c := cfg
+		c.Model = m
+		r := newRunner(c, personaTemplate)
+		fmt.Printf("\n################ model: %s | scenario: %s ################\n", m, name)
+		r.logLine("### compare model %s scenario %s", m, name)
+		errs := 0
+		for _, line := range lines {
+			if r.s.Director.ended {
+				break
+			}
+			fmt.Printf("you> %s\n", line)
+			before := r.st.Replies
+			r.step(line)
+			if r.st.Replies == before {
+				errs++
+				if errs >= 2 {
+					fmt.Println("     (two errors in a row - skipping this model)")
+					break
+				}
+			}
+		}
+		r.summary()
+		rows = append(rows, row{m, r.st, errs, r.s.Director.status(c, r.s.Turns+1)})
+	}
+	fmt.Println("\n================ compare: scenario " + name + " ================")
+	fmt.Printf("%-45s %7s %6s %7s %5s %9s %7s %8s  %s\n", "model", "replies", "share", "retries", "warns", "words/ln", "avg s", "tokens", "end state")
+	for _, r := range rows {
+		share := "-"
+		if r.st.ShareTurn > 0 {
+			share = strconv.Itoa(r.st.ShareTurn)
+		}
+		avgW, avgS := 0.0, 0.0
+		if r.st.Lines > 0 {
+			avgW = float64(r.st.Words) / float64(r.st.Lines)
+		}
+		if r.st.Replies > 0 {
+			avgS = r.st.Seconds / float64(r.st.Replies)
+		}
+		state := r.end
+		if r.errs > 0 {
+			state = fmt.Sprintf("%d errors | %s", r.errs, state)
+		}
+		fmt.Printf("%-45s %7d %6s %7d %5d %9.1f %7.1f %8d  %s\n", trim(r.model, 45), r.st.Replies, share, r.st.Retries, r.st.Warns, avgW, avgS, r.st.PromptTok+r.st.ComplTok, trim(state, 40))
+	}
+	fmt.Println("lower retries/warns + short words/ln + share on the expected reply = better model for this job. transcripts in apitest.log")
 }
 
 func loadScenarios(path string) (map[string][]string, error) {
@@ -1524,6 +1602,12 @@ func loadConfig(path string) (config, error) {
 				return cfg, fmt.Errorf("EXTRA_JSON is not valid JSON: %v", err)
 			}
 			cfg.ExtraJSON = extra
+		case "COMPARE_MODELS", "MODELS":
+			for _, m := range strings.Split(value, ",") {
+				if m = strings.TrimSpace(m); m != "" {
+					cfg.Models = append(cfg.Models, m)
+				}
+			}
 		case "COUNTRIES":
 			var list []string
 			for _, c := range strings.Split(value, ",") {
