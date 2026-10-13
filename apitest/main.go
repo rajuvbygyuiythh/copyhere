@@ -1154,6 +1154,9 @@ func complete(cfg config, msgs []message) (string, callInfo, error) {
 		if parsed.Error != nil && parsed.Error.Message != "" {
 			msg = parsed.Error.Message
 		}
+		if status == 403 && strings.Contains(strings.ToLower(msg), "gated") {
+			msg += "\n     FIX: this model needs HuggingFace access approval. easiest: set a non-gated model in apitest.config.txt, e.g.\n       MODEL=Qwen/Qwen2.5-72B-Instruct   or   MODEL=mistralai/Mistral-Nemo-Instruct-2407   or   MODEL=NousResearch/Hermes-3-Llama-3.1-70B"
+		}
 		return "", ci, fmt.Errorf("HTTP %d: %s", status, msg)
 	}
 	if len(parsed.Choices) == 0 {

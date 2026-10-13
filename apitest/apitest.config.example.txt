@@ -1,8 +1,10 @@
 # apitest.config.txt — settings for apitest.exe (this file stays on your PC, it is git-ignored)
 # Any OpenAI-compatible API works. Featherless example:
 BASE_URL=https://api.featherless.ai/v1
-MODEL=meta-llama/Llama-3.3-70B-Instruct
+MODEL=Qwen/Qwen2.5-72B-Instruct
 API_KEY=your-featherless-api-key
+# note: meta-llama/* models on Featherless are GATED (HTTP 403) until you accept Meta's licence on HuggingFace.
+# non-gated alternatives: Qwen/Qwen2.5-72B-Instruct, mistralai/Mistral-Nemo-Instruct-2407, NousResearch/Hermes-3-Llama-3.1-70B
 
 # the snap username the bot shares (the tool appends it itself, the AI never writes it)
 SNAP_USERNAME=yoursnapname
@@ -35,7 +37,7 @@ TIMEOUT_SEC=60
 # reasoning model example (needs thinking disabled or a big MAX_TOKENS):
 #   MODEL=deepseek-ai/DeepSeek-V4.1-Flash
 # other non-reasoning instruct models on Featherless:
-#   MODEL=Qwen/Qwen2.5-72B-Instruct
+#   MODEL=meta-llama/Llama-3.3-70B-Instruct   (gated - needs HF access)
 MAX_TOKENS=1024
 TEMPERATURE=0.9
 HISTORY=30

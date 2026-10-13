@@ -10,7 +10,7 @@ stranger adds her snap). The bot's TXT engine (EVAChat Flow) is done and
 frozen. We are now designing the **AI version of the chat** — but ONLY inside
 `apitest/`, a standalone console tool that talks to an OpenAI-compatible API
 (Featherless `https://api.featherless.ai/v1`, default model
-`meta-llama/Llama-3.3-70B-Instruct`). When the owner is happy with how it
+`Qwen/Qwen2.5-72B-Instruct` — Llama models are gated on Featherless, HTTP 403). When the owner is happy with how it
 chats, we will design (together, later) how it goes into `internal/bot`.
 Until then: **no changes outside `apitest/`.**
 
@@ -85,6 +85,6 @@ tricky ends on "i dont have snap", rude/money/noeng END.
 
 * `deepseek-ai/DeepSeek-V4.1-Flash` is a reasoning model: with small
   MAX_TOKENS it returns empty content (`finish=length`). Tool detects it and
-  prints the FIX hint. Prefer Llama-3.3-70B-Instruct / Qwen2.5-72B-Instruct.
+  prints the FIX hint. * `meta-llama/*` on Featherless → HTTP 403 "gated model" until the owner accepts Meta's licence on HuggingFace. Use Qwen2.5-72B-Instruct / Mistral-Nemo / Hermes-3-Llama-3.1-70B instead.
 * Real LLM APIs are unreachable from the sandbox — test with mocks, the owner
   tests for real on Windows.
