@@ -15,7 +15,11 @@ API and pastes output; agent fixes bugs from that output.
 
 ## Last thing done (most recent turn first)
 
-0. **P5-R SHIPPED — "API Chat" = 4th chat mode on the Message page.**
+0. Owner said the API mode is not visible → it IS in the pushed UI; he was
+   on an old exe. Added "UI build 2026-10-14 · 4 chat modes" tag on the
+   Message header. If he still reports 3 modes: he must re-download the zip
+   and rebuild (UI is go:embed-ed into the exe).
+0b. **P5-R SHIPPED — "API Chat" = 4th chat mode on the Message page.**
    New `internal/bot/apichat/` (apitest brain ported 1:1 + `Engine`),
    `internal/bot/api_chat.go` bridge, model/settings/app.go/frontend wiring,
    data folder `data\api_chat\`. All vet/tests green via the offline stub

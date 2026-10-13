@@ -62,4 +62,8 @@ Format: date · commit(s) · what · why/notes. Older history condensed.
 - Verification: `memory/scripts/offline_typecheck.sh` → vet + Windows build
   (stubbed deps) + tests (`internal/bot`, `apichat`, `apitest`) all green.
 - Not done: caps (unconfirmed), Home/Live Wall tiles for the API counters.
+- Owner reported "API option is not inside the Message page" → verified the
+  4th radio IS in the pushed `index.html`/zip; cause = old exe (UI is embedded
+  at compile time). Added a visible "UI build 2026-10-14 · 4 chat modes" tag
+  on the Message header (`3b5d329` zip) so stale builds are obvious.
 
