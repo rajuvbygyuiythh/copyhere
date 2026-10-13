@@ -12,6 +12,9 @@ type BrowserSettings struct {
 	Profile  string `json:"profile"`
 	Backend  string `json:"backend"`
 	Headless bool   `json:"headless"`
+	// BrowserMode keeps the real browser window open for the whole run and
+	// sends every request through that page (no Go http / websocket).
+	BrowserMode bool `json:"browser_mode"`
 }
 
 const (

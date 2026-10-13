@@ -103,3 +103,8 @@ Format: date · commit(s) · what · why/notes. Older history condensed.
   auto-close + session auto-save) and asked "is it already done? analyze
   deeply" → answered NOT done (details in P8 plan note); no code.
 
+- Owner said GO → P8 phase 1 implemented end to end (browser_mode.go,
+  api Executor/NewVia, browser Navigate/SetCookies, run.go branch, app.go,
+  Browser page checkbox, docs/BROWSER_MODE.md, tests). Real compile of
+  rod.go/chromedp.go made possible via `memory/scripts/browser_pkg_check.sh`.
+  Next: owner builds on Windows, runs with Browser mode on, pastes logs.

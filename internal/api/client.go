@@ -32,7 +32,24 @@ type Client struct {
 	httpClient *http.Client
 	login      model.LoginInfo
 	appURL     string
+	// via, when set, executes every request instead of httpClient (Browser
+	// mode: the request runs inside the real browser page).
+	via Executor
 }
+
+// Executor runs one request somewhere else than the Go http client.
+type Executor interface {
+	Fetch(ctx context.Context, req FetchRequest) (FetchResponse, error)
+}
+
+// NewVia returns a client whose requests are executed by exec (Browser
+// mode). login is kept for the token check and for ViaExecutor() callers.
+func NewVia(exec Executor, login model.LoginInfo, appURL string) *Client {
+	return &Client{login: login, appURL: appURL, via: exec}
+}
+
+// Via reports whether the client delegates to an Executor.
+func (c *Client) Via() bool { return c != nil && c.via != nil }
 
 func New(login model.LoginInfo, appURL string, proxyRotator *proxy.Rotator) *Client {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
@@ -58,6 +75,9 @@ func New(login model.LoginInfo, appURL string, proxyRotator *proxy.Rotator) *Cli
 }
 
 func (c *Client) Fetch(ctx context.Context, req FetchRequest) (FetchResponse, error) {
+	if c.via != nil {
+		return c.via.Fetch(ctx, req)
+	}
 	token := c.login.Token()
 	if token == "" {
 		return FetchResponse{}, fmt.Errorf("missing token cookie in login info")

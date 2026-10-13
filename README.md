@@ -12,6 +12,9 @@ Clean source-only project for the Windows Wails desktop app and CLI worker.
 - Build script, test report, database/editing guide, and security `.gitignore`
 - Live Wall: Home counters + chat log mirrored to a full-screen sci-fi page in
   the PC browser (`docs/LIVE_WALL.md`), opened automatically on Start Bot
+- Browser mode (Browser page checkbox): the real browser window stays open and
+  visible for the whole run, every request goes through that page, Stop saves
+  the session and closes the window (`docs/BROWSER_MODE.md`)
 
 ## Not included
 

@@ -36,6 +36,13 @@ type Backend interface {
 	Start(context.Context, Options) error
 	CaptureSession(context.Context) (model.LoginInfo, error)
 	Fetch(context.Context, FetchRequest) (FetchResponse, error)
+	// Navigate loads url in the controlled page (Browser mode: bring the
+	// window back to the app after a session expiry).
+	Navigate(context.Context, string) error
+	// SetCookies injects saved cookies before the page is used, so a profile
+	// whose browser folder is empty (fresh-login accounts) is logged in
+	// without typing the password again.
+	SetCookies(context.Context, []model.Cookie) error
 	Close() error
 }
 

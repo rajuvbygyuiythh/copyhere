@@ -160,6 +160,7 @@ function setChatMode(mode) {
 function fillForms(snapshot) {
   document.getElementById("browser-profile").value = snapshot.browser.profile || "default";
   document.getElementById("browser-headless").checked = !!snapshot.browser.headless;
+  document.getElementById("browser-mode").checked = !!snapshot.browser.browser_mode;
   
   const currentMode = snapshot.message.chat_mode || ((snapshot.message.use_loaded_sequences && snapshot.message.loaded_sequences && snapshot.message.loaded_sequences.length > 0) ? "folder" : "single");
   setChatMode(currentMode);
@@ -274,6 +275,7 @@ function bindForms() {
       profile: document.getElementById("browser-profile").value.trim() || "default",
       backend: selectedBackend(),
       headless: document.getElementById("browser-headless").checked,
+      browser_mode: document.getElementById("browser-mode").checked,
     });
     await refreshState();
   });

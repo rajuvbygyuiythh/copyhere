@@ -294,6 +294,54 @@ func (b *RodBackend) CaptureSession(ctx context.Context) (model.LoginInfo, error
 	return login, err
 }
 
+// Navigate loads url in the current page and waits for the load event.
+func (b *RodBackend) Navigate(ctx context.Context, url string) error {
+	return b.withPageRetry(ctx, func(page *rod.Page) error {
+		if err := page.Navigate(url); err != nil {
+			return err
+		}
+		if err := page.WaitLoad(); err != nil && !isRecoverablePageError(err) {
+			return err
+		}
+		return nil
+	})
+}
+
+// SetCookies injects cookies into the browser (all pages share the jar).
+func (b *RodBackend) SetCookies(ctx context.Context, cookies []model.Cookie) error {
+	if b.browser == nil {
+		return ErrPageUnavailable
+	}
+	params := make([]*proto.NetworkCookieParam, 0, len(cookies))
+	for _, c := range cookies {
+		if strings.TrimSpace(c.Name) == "" {
+			continue
+		}
+		param := &proto.NetworkCookieParam{
+			Name:     c.Name,
+			Value:    c.Value,
+			Domain:   c.Domain,
+			Path:     c.Path,
+			Secure:   c.Secure,
+			HTTPOnly: c.HTTPOnly,
+		}
+		if param.Domain == "" {
+			param.URL = "https://app.chitchat.gg/"
+		}
+		if param.Path == "" {
+			param.Path = "/"
+		}
+		if c.Expires > 0 {
+			param.Expires = proto.TimeSinceEpoch(c.Expires)
+		}
+		params = append(params, param)
+	}
+	if len(params) == 0 {
+		return nil
+	}
+	return b.browser.Context(ctx).SetCookies(params)
+}
+
 func (b *RodBackend) Fetch(ctx context.Context, req FetchRequest) (FetchResponse, error) {
 	payload := map[string]any{
 		"url":     req.URL,

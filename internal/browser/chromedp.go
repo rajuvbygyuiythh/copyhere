@@ -4,9 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
+	"time"
 
 	"chitchatbot/internal/model"
 	"chitchatbot/internal/runtimeassets"
+	"github.com/chromedp/cdproto/cdp"
 	cdpfetch "github.com/chromedp/cdproto/fetch"
 
 	"github.com/chromedp/cdproto/network"
@@ -151,6 +154,49 @@ func (b *ChromeDPBackend) CaptureSession(ctx context.Context) (model.LoginInfo, 
 	}
 
 	return login, nil
+}
+
+// Navigate loads url in the controlled tab.
+func (b *ChromeDPBackend) Navigate(ctx context.Context, url string) error {
+	if b.ctx == nil {
+		return ErrPageUnavailable
+	}
+	return chromedp.Run(b.ctx, chromedp.Navigate(url))
+}
+
+// SetCookies injects cookies into the browser.
+func (b *ChromeDPBackend) SetCookies(ctx context.Context, cookies []model.Cookie) error {
+	if b.ctx == nil {
+		return ErrPageUnavailable
+	}
+	return chromedp.Run(b.ctx, chromedp.ActionFunc(func(execCtx context.Context) error {
+		for _, c := range cookies {
+			if strings.TrimSpace(c.Name) == "" {
+				continue
+			}
+			params := network.SetCookie(c.Name, c.Value).
+				WithSecure(c.Secure).
+				WithHTTPOnly(c.HTTPOnly)
+			if c.Domain != "" {
+				params = params.WithDomain(c.Domain)
+			} else {
+				params = params.WithURL("https://app.chitchat.gg/")
+			}
+			if c.Path != "" {
+				params = params.WithPath(c.Path)
+			} else {
+				params = params.WithPath("/")
+			}
+			if c.Expires > 0 {
+				expires := cdp.TimeSinceEpoch(time.Unix(int64(c.Expires), 0))
+				params = params.WithExpires(&expires)
+			}
+			if err := params.Do(execCtx); err != nil {
+				return err
+			}
+		}
+		return nil
+	}))
 }
 
 func (b *ChromeDPBackend) Fetch(ctx context.Context, req FetchRequest) (FetchResponse, error) {

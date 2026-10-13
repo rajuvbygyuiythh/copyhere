@@ -1,4 +1,4 @@
-# 00 — RESUME BRIEF (always current; last update: 2026-10-14 (P5-R shipped), Asia/Dhaka)
+# 00 — RESUME BRIEF (always current; last update: 2026-10-14 (P8 phase 1 shipped), Asia/Dhaka)
 
 ## Where we are (one paragraph)
 
@@ -14,6 +14,22 @@ chat from `snap_usernames.txt`. Owner tests apitest on his PC against the real
 API and pastes output; agent fixes bugs from that output.
 
 ## Last thing done (most recent turn first)
+
+0000000. **P8 PHASE 1 SHIPPED — "Browser mode"** (Browser page checkbox
+        `browser_mode`). Off = bot unchanged. On = per account one VISIBLE
+        Chrome stays open Start→Stop; saved cookies injected (fresh-login
+        accounts need no retyping); `api.NewVia(browserExecutor)` runs every
+        request with the page's `fetch()` (no Go http/websocket; poll cycle);
+        401 → "log in again in the window" and resume; window closed by owner →
+        that worker stops, others continue; Stop → re-capture session → save
+        `login_info.json` → close window; per-profile window slot prevents a
+        double Chrome on quick Stop/Start. Files: `internal/bot/browser_mode.go`
+        (+test), `internal/api/client.go` (`Executor`/`NewVia`, +test),
+        `internal/browser/{backend,rod,chromedp}.go` (`Navigate`,
+        `SetCookies`), `run.go`, `app.go`, `index.html`/`app.js`,
+        `docs/BROWSER_MODE.md`. NEW: `memory/scripts/browser_pkg_check.sh`
+        really compiles rod.go/chromedp.go (deps via codeload) — passed.
+        Waiting for the owner's Windows build + first real run logs.
 
 000000. Owner asked for a PLAN (no code yet) for "Browser mode" (visible
         real browser does the chatting, no websocket). Plan P8 written in

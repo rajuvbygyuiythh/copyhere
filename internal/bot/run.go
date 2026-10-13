@@ -24,6 +24,7 @@ type Config struct {
 	LoginInfoPath        string
 	Backend              string
 	Headless             bool
+	BrowserMode          bool // keep the real browser open; chat through its page
 	MatchWhenIdle        bool
 	PollMin              time.Duration
 	PollMax              time.Duration
@@ -85,7 +86,14 @@ func Run(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return err
 	}
-	if login.Token() == "" {
+	var bsession *browserSession // non-nil only in Browser mode
+	if cfg.BrowserMode {
+		bsession, login, err = openBrowserSession(ctx, cfg, p, login)
+		if err != nil {
+			return err
+		}
+		defer func() { bsession.saveAndClose(login) }()
+	} else if login.Token() == "" {
 		logln(cfg, "No saved login token found. Opening browser for login.")
 		login, err = captureLoginViaBrowser(ctx, cfg, p)
 		if err != nil {
@@ -111,7 +119,13 @@ func Run(ctx context.Context, cfg Config) error {
 			cfg.Pacing.BotFirstPercent, cfg.Pacing.ActiveMin.Truncate(time.Minute), cfg.Pacing.ActiveMax.Truncate(time.Minute),
 			cfg.Pacing.RestMin.Truncate(time.Minute), cfg.Pacing.RestMax.Truncate(time.Minute), cfg.Pacing.ChatsPerHourMax)
 	}
-	realtimeEvents, stopRealtime := startRealtimeListener(ctx, cfg, login, currentUserID)
+	var realtimeEvents <-chan realtimeEvent
+	var stopRealtime context.CancelFunc
+	if bsession != nil {
+		logln(cfg, "[browser] Realtime websocket is off in Browser mode; new messages are picked up by the normal cycle.")
+	} else {
+		realtimeEvents, stopRealtime = startRealtimeListener(ctx, cfg, login, currentUserID)
+	}
 	defer func() {
 		if stopRealtime != nil {
 			stopRealtime()
@@ -124,10 +138,30 @@ func Run(ctx context.Context, cfg Config) error {
 
 	lastPhase := PhaseActive
 	for {
-		client := api.New(login, cfg.AppURL, cfg.ProxyRotator)
+		var client *api.Client
+		if bsession != nil {
+			client = bsession.client(login)
+		} else {
+			client = api.New(login, cfg.AppURL, cfg.ProxyRotator)
+		}
 
 		workDone, err := runCycle(ctx, client, cfg, p, login, currentUserID, rng)
 		if err != nil {
+			if errors.Is(err, errBrowserGone) {
+				logf(cfg, "[browser] %v. Stopping this worker (other accounts keep running).\n", err)
+				return err
+			}
+			if errors.Is(err, errLoginExpired) && bsession != nil && ctx.Err() == nil {
+				// Browser mode: do not stop, let the owner log in again in the window.
+				login, err = bsession.relogin(ctx)
+				if err != nil {
+					return err
+				}
+				if id := currentUserIDFromLogin(login); id != "" {
+					currentUserID = id
+				}
+				continue
+			}
 			if errors.Is(err, errAccountBanned) {
 				if mErr := markBotUserBanned(cfg, currentUserID, err.Error()); mErr != nil {
 					logf(cfg, "[banned] Could not update the account registry: %v\n", mErr)
@@ -158,6 +192,10 @@ func Run(ctx context.Context, cfg Config) error {
 				logln(cfg, "No new messages or relationships to process, attempting to find a new chat partner.")
 				chatted, err := matchAndChat(ctx, client, cfg, p, login, currentUserID, rng, realtimeEvents)
 				if err != nil {
+					if errors.Is(err, errBrowserGone) {
+						logf(cfg, "[browser] %v. Stopping this worker (other accounts keep running).\n", err)
+						return err
+					}
 					if errors.Is(err, errAccountBanned) {
 						// Dead account: mark it, say it once, stop this worker.
 						if mErr := markBotUserBanned(cfg, currentUserID, err.Error()); mErr != nil {

@@ -144,5 +144,5 @@ replace github.com/yusufpapurcu/wmi => ./_stubs/wmi
 G
 go vet ./internal/bot/... ./internal/model ./internal/api ./internal/proxy ./internal/store ./internal/workerplan ./internal/logwall
 GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o /tmp/chitchatui-typecheck.exe . && echo "ROOT BUILD OK (stubbed deps; not a real release binary)"
-go test ./internal/bot ./internal/bot/apichat ./internal/workerplan ./internal/logwall
+go test ./internal/bot ./internal/bot/apichat ./internal/workerplan ./internal/logwall ./internal/api
 go build -o /tmp/apitest-typecheck ./cmd/apitest && echo "apitest lab builds"

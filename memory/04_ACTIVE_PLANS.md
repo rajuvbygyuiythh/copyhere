@@ -130,7 +130,18 @@ friend-DM opener, pacing engine.
 Open questions → see `00_RESUME_BRIEF.md`. Suggested order: A+B first PR,
 then C, then D.
 
-## P8 — Browser Mode (visible real browser does the chatting) — PLAN APPROVED? (2026-10-14, awaiting "go")
+## P8 — Browser Mode (visible real browser does the chatting) — PHASE 1 SHIPPED 2026-10-14 (phases 2–3 open)
+
+**Phase 1 status: DONE** (see `docs/BROWSER_MODE.md`). Implemented exactly as
+planned plus: cookie injection via `Backend.SetCookies` for empty browser
+profiles, in-window re-login on 401 (worker does not stop), owner-closed
+window → only that worker stops, per-profile window slot (quick Stop→Start
+waits for the previous window), Headless forced off in browser mode, dashboard
+warning above 10 accounts. Verification: `offline_typecheck.sh` (bot/api tests
+green) + new `browser_pkg_check.sh` (real rod/chromedp compile green). Still
+unverified on real Windows + real Chrome — owner's first run logs will drive
+the debug round. Phase 2 (in-page socket relay) / phase 3 (DOM typing) only
+on request.
 
 Owner: Browser page gets ONE new option "Browser mode". Bot behaviour stays
 exactly as today when it is off. When on: the real browser window stays
