@@ -128,6 +128,13 @@ func Run(ctx context.Context, cfg Config) error {
 
 		workDone, err := runCycle(ctx, client, cfg, p, login, currentUserID, rng)
 		if err != nil {
+			if errors.Is(err, errAccountBanned) {
+				if mErr := markBotUserBanned(cfg, currentUserID, err.Error()); mErr != nil {
+					logf(cfg, "[banned] Could not update the account registry: %v\n", mErr)
+				}
+				logf(cfg, "[banned] ChitChat says this account is banned/flagged (%v). Account marked DEAD; this worker stops. Other accounts keep running.\n", err)
+				return err
+			}
 			if errors.Is(err, errLoginExpired) {
 				// If login is expired, stop the worker instead of trying to refresh via browser.
 				logln(cfg, "Saved login expired or missing. Stopping worker.")
@@ -151,6 +158,14 @@ func Run(ctx context.Context, cfg Config) error {
 				logln(cfg, "No new messages or relationships to process, attempting to find a new chat partner.")
 				chatted, err := matchAndChat(ctx, client, cfg, p, login, currentUserID, rng, realtimeEvents)
 				if err != nil {
+					if errors.Is(err, errAccountBanned) {
+						// Dead account: mark it, say it once, stop this worker.
+						if mErr := markBotUserBanned(cfg, currentUserID, err.Error()); mErr != nil {
+							logf(cfg, "[banned] Could not update the account registry: %v\n", mErr)
+						}
+						logf(cfg, "[banned] ChitChat says this account is banned/flagged (%v). Account marked DEAD; this worker stops. Other accounts keep running.\n", err)
+						return err
+					}
 					if errors.Is(err, errRateLimited) {
 						until := cfg.pace.noteLimited()
 						logf(cfg, "[pacing] Platform limit detected. Cooling down until %s.\n", until.Local().Format("15:04:05"))
@@ -311,6 +326,9 @@ func match(ctx context.Context, client *api.Client, cfg Config) error {
 
 	if resp.Status == 429 {
 		return fmt.Errorf("match request returned 429: %w", errRateLimited)
+	}
+	if isBannedResponse(resp.Status, resp.Text) {
+		return fmt.Errorf("match request returned 403 %s: %w", bannedReason(resp.Text), errAccountBanned)
 	}
 	if !resp.OK {
 		return fmt.Errorf("match request returned non-OK status %d: %s", resp.Status, resp.Text)

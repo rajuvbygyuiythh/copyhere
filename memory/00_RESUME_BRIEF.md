@@ -15,6 +15,11 @@ API and pastes output; agent fixes bugs from that output.
 
 ## Last thing done (most recent turn first)
 
+00000. Banned/flagged accounts: worker now stops itself after one `[banned]`
+       log line and the account is marked dead immediately (Home / Live Wall
+       "Dead / banned"). No skip-at-start: next Start tries once more (flag
+       may be lifted) and stops again if still 403.
+
 0000. Owner: "one physical file, fix" → bot now reads
       **`cmd\apitest\config_rules.json` directly** (`apichat.FindProjectRules()`
       walks up ≤6 levels from cwd and exe dir; `Options.RulesPath`;

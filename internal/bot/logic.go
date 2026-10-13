@@ -150,6 +150,10 @@ func sendDMMessage(
 	if err != nil {
 		return 0, "", err
 	}
+	if isBannedResponse(resp.Status, resp.Text) {
+		// Surface it as an error so every caller unwinds and Run stops the worker.
+		return resp.Status, resp.Text, fmt.Errorf("send returned 403 %s: %w", bannedReason(resp.Text), errAccountBanned)
+	}
 
 	return resp.Status, resp.Text, nil
 }

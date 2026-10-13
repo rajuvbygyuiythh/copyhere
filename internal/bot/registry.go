@@ -24,6 +24,8 @@ type botUserRecord struct {
 	LastFailureStatus int       `json:"last_failure_status,omitempty"`
 	LastFailureAt     time.Time `json:"last_failure_at,omitempty"`
 	LastSuccessAt     time.Time `json:"last_success_at,omitempty"`
+	BannedAt          time.Time `json:"banned_at,omitempty"`
+	BannedReason      string    `json:"banned_reason,omitempty"`
 }
 
 type trafficOwnerRecord struct {

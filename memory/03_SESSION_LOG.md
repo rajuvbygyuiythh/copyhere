@@ -89,4 +89,11 @@ Format: date · commit(s) · what · why/notes. Older history condensed.
   `cmd/apitest/config_rules.json`: `FindProjectRules()`, `Options.RulesPath`,
   `EnsureData(dir, skip...)`, `APIChatRulesPath()` in api_chat.go; UI note,
   README, docs updated; test `TestRulesPathOptionAndProjectLookup`.
+- Owner (Live Wall screenshot): banned account (403 ACCOUNT_BANNED /
+  "Flagged") kept retrying /match every 2 s and spamming the log → new
+  `internal/bot/banned.go`: `isBannedResponse`, `bannedReason`,
+  `errAccountBanned`, `markBotUserBanned` (registry status dead +
+  banned_at/reason). `match()` and `sendDMMessage()` wrap 403-banned bodies;
+  `Run` loop marks dead, logs one `[banned]` line, stops that worker only.
+  Home tile renamed "Dead / banned". Tests `banned_test.go`.
 
