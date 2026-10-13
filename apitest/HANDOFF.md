@@ -10,7 +10,7 @@ stranger adds her snap). The bot's TXT engine (EVAChat Flow) is done and
 frozen. We are now designing the **AI version of the chat** — but ONLY inside
 `apitest/`, a standalone console tool that talks to an OpenAI-compatible API
 (Featherless `https://api.featherless.ai/v1`, default model
-`Qwen/Qwen2.5-72B-Instruct` — Llama models are gated on Featherless, HTTP 403). When the owner is happy with how it
+`deepseek-ai/DeepSeek-V3-0324`; Llama/Gemma are gated on Featherless → HTTP 403; 2026 families Qwen3.x/GLM-5/DeepSeek-V4/Kimi-K3 think by default → tool sends thinking-off fields automatically, `AUTO_NOTHINK`). When the owner is happy with how it
 chats, we will design (together, later) how it goes into `internal/bot`.
 Until then: **no changes outside `apitest/`.**
 

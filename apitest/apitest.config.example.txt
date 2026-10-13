@@ -1,14 +1,26 @@
 # apitest.config.txt — settings for apitest.exe (this file stays on your PC, it is git-ignored)
 # Any OpenAI-compatible API works. Featherless example:
 BASE_URL=https://api.featherless.ai/v1
-MODEL=Qwen/Qwen2.5-72B-Instruct
+MODEL=deepseek-ai/DeepSeek-V3-0324
 API_KEY=your-featherless-api-key
 # note: meta-llama/* models on Featherless are GATED (HTTP 403) until you accept Meta's licence on HuggingFace.
 # non-gated alternatives: Qwen/Qwen2.5-72B-Instruct, mistralai/Mistral-Nemo-Instruct-2407, NousResearch/Hermes-3-Llama-3.1-70B
 
 # apitest.bat compare warm  -> plays one scenario on each of these models and prints a comparison table
-# (pick the exact ids from https://featherless.ai/models ; avoid meta-llama/* unless you have HF access)
-COMPARE_MODELS=Qwen/Qwen2.5-72B-Instruct,mistralai/Mistral-Nemo-Instruct-2407,NousResearch/Hermes-3-Llama-3.1-70B
+# curated for short casual chat, non-gated. ids copied from the featherless catalog - fix a name if the API says 404.
+#   deepseek-ai/DeepSeek-V3-0324   non-thinking, very natural casual english  (top pick)
+#   Qwen/Qwen2.5-72B-Instruct      non-thinking, reliable instruction following
+#   Qwen/Qwen3.8-27B               2026, popular, hybrid thinking -> tool switches it off automatically
+#   zai-org/GLM-5.3-Flash          fast, thinking -> auto off
+#   Qwen/Qwen3.5-9B                small/cheap/fast, thinking -> auto off
+#   mistralai/Mistral-7B-Instruct-v0.3   tiny, non-thinking, very casual (dumb but human sounding)
+# roleplay / uncensored flavour (more flirty, watch RETRY count):  OBLITERATUS/Qwen3.8-27B-OBLITERATED
+# AVOID: meta-llama/* and google/gemma-* (gated, HTTP 403), gpt-oss-* (always reasons), *-R1-Distill-*, DeepSeek-V4-Pro/Kimi-K3 (huge, slow)
+COMPARE_MODELS=deepseek-ai/DeepSeek-V3-0324,Qwen/Qwen2.5-72B-Instruct,Qwen/Qwen3.8-27B,zai-org/GLM-5.3-Flash,Qwen/Qwen3.5-9B
+
+# AUTO_NOTHINK=1 (default): for Qwen3*/GLM-5*/DeepSeek-V4*/Kimi-K3/gpt-oss the tool adds the "no thinking" request fields itself.
+# set 0 to send nothing extra. EXTRA_JSON (below) always overrides.
+AUTO_NOTHINK=1
 
 # the snap username the bot shares (the tool appends it itself, the AI never writes it)
 SNAP_USERNAME=yoursnapname

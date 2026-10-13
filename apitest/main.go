@@ -51,6 +51,7 @@ type config struct {
 	ShowPrompt   bool
 	ExtraJSON    map[string]any
 	Models       []string // COMPARE_MODELS for `apitest compare <scenario>`
+	AutoNoThink  bool     // AUTO_NOTHINK (default 1): send thinking-off fields for known families
 }
 
 type message struct {
@@ -1264,6 +1265,40 @@ func complete(cfg config, msgs []message) (string, callInfo, error) {
 	return content, ci, nil
 }
 
+// noThinkFields returns request fields that switch off "thinking" for known hybrid
+// reasoning families, so the model writes the chat line instead of reasoning tokens.
+func noThinkFields(model string) map[string]any {
+	m := strings.ToLower(model)
+	switch {
+	case strings.Contains(m, "qwen3"), strings.Contains(m, "qwen-3"), strings.Contains(m, "qwen4"):
+		// Qwen3 / 3.5 / 3.6 / 3.8 hybrid thinking (vLLM chat template kwarg)
+		return map[string]any{"chat_template_kwargs": map[string]any{"enable_thinking": false}}
+	case strings.Contains(m, "glm-4.5"), strings.Contains(m, "glm-4.6"), strings.Contains(m, "glm-4.7"), strings.Contains(m, "glm-5"), strings.Contains(m, "glm5"):
+		return map[string]any{"thinking": map[string]any{"type": "disabled"}, "chat_template_kwargs": map[string]any{"enable_thinking": false}}
+	case strings.Contains(m, "deepseek-v3.1"), strings.Contains(m, "deepseek-v3.2"), strings.Contains(m, "deepseek-v4"), strings.Contains(m, "deepseek-r"):
+		return map[string]any{"chat_template_kwargs": map[string]any{"thinking": false, "enable_thinking": false}, "thinking": map[string]any{"type": "disabled"}}
+	case strings.Contains(m, "kimi-k2.5"), strings.Contains(m, "kimi-k3"), strings.Contains(m, "kimi-k2-thinking"):
+		return map[string]any{"thinking": map[string]any{"type": "disabled"}, "chat_template_kwargs": map[string]any{"thinking": false, "enable_thinking": false}}
+	case strings.Contains(m, "gpt-oss"):
+		return map[string]any{"reasoning_effort": "low"} // cannot be fully disabled
+	case strings.Contains(m, "minimax-m"), strings.Contains(m, "mimo"), strings.Contains(m, "step-3"), strings.Contains(m, "nemotron"):
+		return map[string]any{"chat_template_kwargs": map[string]any{"enable_thinking": false, "thinking": false}}
+	}
+	return nil
+}
+
+func noThinkLabel(cfg config) string {
+	if !cfg.AutoNoThink {
+		return "off (AUTO_NOTHINK=0)"
+	}
+	f := noThinkFields(cfg.Model)
+	if f == nil {
+		return "not needed for this model"
+	}
+	b, _ := json.Marshal(f)
+	return "auto " + string(b)
+}
+
 func rawCall(cfg config, msgs []message, maxTokens int) (int, []byte, error) {
 	fields := map[string]any{
 		"model":       cfg.Model,
@@ -1271,7 +1306,12 @@ func rawCall(cfg config, msgs []message, maxTokens int) (int, []byte, error) {
 		"max_tokens":  maxTokens,
 		"temperature": cfg.Temperature,
 	}
-	for k, v := range cfg.ExtraJSON {
+	if cfg.AutoNoThink {
+		for k, v := range noThinkFields(cfg.Model) {
+			fields[k] = v
+		}
+	}
+	for k, v := range cfg.ExtraJSON { // explicit EXTRA_JSON always wins
 		fields[k] = v
 	}
 	payload, err := json.Marshal(fields)
@@ -1519,8 +1559,9 @@ func genderAge(low string) (string, int, bool) {
 
 func loadConfig(path string) (config, error) {
 	cfg := config{
+		AutoNoThink: true,
 		BaseURL:     "https://api.featherless.ai/v1",
-		Model:       "meta-llama/Llama-3.3-70B-Instruct",
+		Model:       "deepseek-ai/DeepSeek-V3-0324",
 		Timeout:     60 * time.Second,
 		MaxTokens:   1024,
 		Temperature: 0.9,
@@ -1602,6 +1643,8 @@ func loadConfig(path string) (config, error) {
 				return cfg, fmt.Errorf("EXTRA_JSON is not valid JSON: %v", err)
 			}
 			cfg.ExtraJSON = extra
+		case "AUTO_NOTHINK":
+			cfg.AutoNoThink = value != "0" && !strings.EqualFold(value, "false") && !strings.EqualFold(value, "off")
 		case "COMPARE_MODELS", "MODELS":
 			for _, m := range strings.Split(value, ",") {
 				if m = strings.TrimSpace(m); m != "" {
@@ -1656,7 +1699,7 @@ func loadPersona(path string) (string, error) {
 func printBanner(cfg config, s *session) {
 	fmt.Println("==========================================================")
 	fmt.Println(" apitest - chat with the AI persona (you are the stranger)")
-	fmt.Printf(" api:     %s\n model:   %s\n", cfg.BaseURL, cfg.Model)
+	fmt.Printf(" api:     %s\n model:   %s\n thinking-off: %s\n", cfg.BaseURL, cfg.Model, noThinkLabel(cfg))
 	fmt.Printf(" persona: f %d from %s, name %s (only told if asked)   (persona.txt, /new = re-roll)\n", s.Age, s.Country, s.Name)
 	fmt.Printf(" snap at: HOT reply %d | WARM %d | COLD %d   username: %s\n", cfg.ShareHot, cfg.ShareWarm, cfg.ShareCold, orDefault(cfg.SnapUsername, "(set SNAP_USERNAME)"))
 	fmt.Printf(" moods:   %s\n", strings.Join(s.Director.moods, " > "))
