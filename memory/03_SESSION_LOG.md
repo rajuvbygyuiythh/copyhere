@@ -78,4 +78,11 @@ Format: date · commit(s) · what · why/notes. Older history condensed.
   change). Owner still has to paste key + usernames and run a real chat.
 - Owner asked to explain "Chats with NO snap (%)" and "Strict no-snap chats"
   in depth → explained with examples (no code change).
+- Owner: move the funnel options out of the dashboard into a
+  `config_rules.json` in the apitest folder, editable by hand, same options
+  for lab + bot → `rules.go` (`Rules`, `LoadRules`, `Apply`), embedded
+  default + `cmd/apitest/config_rules.json`; `Engine.New` applies the file
+  (file wins), `Describe()` shows rules + source; lab `LabMain` loads it
+  next to the exe; model/bridge/HTML/JS stripped of `api_*` funnel fields;
+  tests `rules_test.go`. offline_typecheck green.
 

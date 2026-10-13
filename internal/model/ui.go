@@ -46,18 +46,9 @@ type MessageSettings struct {
 	AIBaseURL string `json:"ai_base_url,omitempty"`
 	AIAPIKey  string `json:"ai_api_key,omitempty"`
 	AIModel   string `json:"ai_model,omitempty"`
-	// API Chat mode (shares ai_base_url / ai_api_key / ai_model above).
-	// APISettingsSaved marks that the funnel values below were saved at
-	// least once; before that, zero values mean "use defaults".
-	APISettingsSaved  bool `json:"api_settings_saved,omitempty"`
-	APIShareHot       int  `json:"api_share_hot,omitempty"`
-	APIShareWarm      int  `json:"api_share_warm,omitempty"`
-	APIShareCold      int  `json:"api_share_cold,omitempty"`
-	APINoSharePercent int  `json:"api_no_share_percent"`
-	APIHintPercent    int  `json:"api_hint_percent"`
-	APINoShareMin     int  `json:"api_no_share_min_replies,omitempty"`
-	APINoShareMax     int  `json:"api_no_share_max_replies,omitempty"`
-	APINoShareStrict  bool `json:"api_no_share_strict,omitempty"`
+	// API Chat mode shares ai_base_url / ai_api_key / ai_model above. The
+	// funnel rules (share turns, no-snap %, hint %) are NOT dashboard
+	// settings: they live in data/api_chat/config_rules.json.
 }
 
 type ProxySettings struct {

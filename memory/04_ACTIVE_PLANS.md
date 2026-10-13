@@ -37,7 +37,8 @@ Message page as a 4th chat mode. Shipped (commit after `1ff392b`):
   `apichat.New(data/api_chat, opts)` (start fails with a clear message when
   URL/key/model empty); `TestAPIChat(settings)`, `OpenAPIChatDataFolder()`.
 - Frontend — 4th radio "API Chat" + `section-apichat-mode` (URL/model/key,
-  Test API, Open folder, HOT/WARM/COLD, no-share %, hint %, min/max, strict).
+  Test API, Open folder). Funnel knobs moved to `config_rules.json`
+  (owner wanted a clean dashboard; 2026-10-14 later turn).
 - Data folder `data\api_chat\{persona.txt,snap_share.txt,snap_hint.txt}`
   seeded on first start / folder open; owner's edits win.
 REMAINING: step 6 caps (per-handle 30/day, per-account 12/h — still

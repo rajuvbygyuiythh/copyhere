@@ -157,6 +157,15 @@ func LabMain() {
 	if err != nil {
 		fatal(err)
 	}
+	// config_rules.json (same file format the bot uses in data/api_chat/)
+	// overrides the SHARE_* / NO_SHARE_* / HINT_PERCENT keys when present.
+	rulesPath := filepath.Join(dir, RulesFile)
+	if rules, rerr := LoadRules(rulesPath); rerr == nil {
+		rules.applyConfig(&cfg)
+		fmt.Printf("rules: %s -> %s\n", RulesFile, rules.String())
+	} else if !os.IsNotExist(rerr) {
+		fmt.Printf("WARN %s: %v (using apitest.config.txt values)\n", RulesFile, rerr)
+	}
 	personaTemplate, err := loadPersona(filepath.Join(dir, "persona.txt"))
 	if err != nil {
 		fatal(err)

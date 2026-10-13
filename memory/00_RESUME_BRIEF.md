@@ -15,6 +15,15 @@ API and pastes output; agent fixes bugs from that output.
 
 ## Last thing done (most recent turn first)
 
+000. Owner: dashboard must stay clean → funnel knobs (share HOT/WARM/COLD,
+     no-snap %, hint %, min/max, strict) REMOVED from the API Chat panel and
+     from `MessageSettings`; they live in **`config_rules.json`**
+     (`internal/bot/apichat/rules.go`, embedded default in `assets/`, seeded
+     to `data\api_chat\config_rules.json`; lab reads
+     `cmd\apitest\config_rules.json`, overriding apitest.config.txt keys).
+     Dashboard API Chat panel = URL / model / key / Test API / Open folder
+     only. Test API + bot start log print the loaded rules.
+
 00. **Owner angry about two things → both fixed:** (a) the old hybrid "AI
     reply text" block inside EVAChat Flow is REMOVED from the UI (API
     settings exist only in the API Chat panel; EVAChat = pure TXT; `eva_ai.go`

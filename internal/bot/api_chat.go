@@ -21,7 +21,7 @@ import (
 )
 
 // APIChatDataDirName is the editable folder under data/ (persona.txt,
-// snap_share.txt, snap_hint.txt).
+// snap_share.txt, snap_hint.txt, config_rules.json).
 const APIChatDataDirName = "api_chat"
 
 // EnsureAPIChatData seeds data/api_chat/ and returns its path.
@@ -33,19 +33,14 @@ func EnsureAPIChatData(dataDir string) (string, error) {
 	return dir, nil
 }
 
-// APIChatOptions maps dashboard settings to engine options. Zero funnel
-// values fall back to the apitest defaults until the panel was saved once.
+// APIChatOptions maps dashboard settings to engine options: only the API
+// connection comes from the dashboard; the funnel rules are read by the
+// engine from data/api_chat/config_rules.json.
 func APIChatOptions(settings model.MessageSettings) apichat.Options {
 	opt := apichat.Defaults()
 	opt.BaseURL = strings.TrimSpace(settings.AIBaseURL)
 	opt.APIKey = strings.TrimSpace(settings.AIAPIKey)
 	opt.Model = strings.TrimSpace(settings.AIModel)
-	if settings.APISettingsSaved {
-		opt.ShareHot, opt.ShareWarm, opt.ShareCold = settings.APIShareHot, settings.APIShareWarm, settings.APIShareCold
-		opt.NoSharePercent, opt.HintPercent = settings.APINoSharePercent, settings.APIHintPercent
-		opt.NoShareMin, opt.NoShareMax = settings.APINoShareMin, settings.APINoShareMax
-		opt.NoShareStrict = settings.APINoShareStrict
-	}
 	return opt
 }
 

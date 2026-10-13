@@ -86,4 +86,6 @@
   apitest zip/module again; one zip only.
 - Owner: "EVAChat Flow-e API option keno?" → no API/AI settings anywhere
   except the API Chat panel. EVAChat Flow = TXT only.
+- Owner: no "spammy" option rows in the dashboard. Funnel/anti-spam knobs are
+  file-only (`config_rules.json`); dashboard keeps connection fields only.
 

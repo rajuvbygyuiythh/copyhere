@@ -210,7 +210,7 @@
           <div id="section-apichat-mode" style="display: none;">
             <div class="hint-text" style="margin-bottom: 10px;">
               <div style="margin-bottom:8px;">
-                <strong>API Chat</strong> — the AI writes every line (USA college-girl persona, short texts, moods); the built-in director decides the funnel: interest tiers HOT / WARM / COLD, when the snap is shared, hint vs direct vs no-share chats. The snap handle is never written by the AI — it comes from <code>data/api_chat/snap_share.txt</code> (hints from <code>snap_hint.txt</code>, persona from <code>persona.txt</code>). Usernames come from the list below, one per stranger from a shuffled deck.
+                <strong>API Chat</strong> — the AI writes every line; the built-in director decides the funnel (interest tiers, when the snap is shared, hint / direct / no-snap chats). The snap handle is never written by the AI — it comes from <code>data\api_chat\snap_share.txt</code>; usernames from the list below, one per stranger from a shuffled deck.
               </div>
               <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
                 <label><span>API base URL (OpenAI-compatible)</span><input type="text" id="apichat-base-url" placeholder="https://api.featherless.ai/v1"></label>
@@ -224,26 +224,7 @@
               </div>
             </div>
             <div class="hint-text" style="margin-bottom: 10px;">
-              <strong>Snap funnel</strong> (bot reply number at which the snap is shared, by the stranger's interest)
-              <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:8px; margin-top:6px;">
-                <label><span>HOT (horny / very engaged)</span><input type="number" id="apichat-share-hot" min="1" max="20" value="4"></label>
-                <label><span>WARM (flirty / curious)</span><input type="number" id="apichat-share-warm" min="1" max="20" value="6"></label>
-                <label><span>COLD (normal / low)</span><input type="number" id="apichat-share-cold" min="1" max="20" value="8"></label>
-              </div>
-              <strong style="display:block; margin-top:10px;">Anti-spam share mix</strong>
-              <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:8px; margin-top:6px;">
-                <label><span>Chats with NO snap (%)</span><input type="number" id="apichat-no-share-percent" min="0" max="100" value="30"></label>
-                <label><span>Hint first (% of share chats)</span><input type="number" id="apichat-hint-percent" min="0" max="100" value="60"></label>
-                <label><span>No-snap chat: min replies</span><input type="number" id="apichat-no-share-min" min="1" max="20" value="3"></label>
-                <label><span>No-snap chat: max replies</span><input type="number" id="apichat-no-share-max" min="1" max="20" value="4"></label>
-              </div>
-              <label style="display:flex; align-items:center; gap:8px; margin-top:8px;">
-                <input type="checkbox" id="apichat-no-share-strict">
-                <span>Strict no-snap chats: even if the stranger asks for the snap, decline (default off = give it, he asked)</span>
-              </label>
-              <div style="margin-top:6px; font-size:0.85em;">
-                Out of 10 strangers: 3 never get the snap (3–4 replies, then the bot leaves), 7 do — 60% of those get a 👻 hint first and the handle only when they bite (or on the next reply), 40% get it directly. Hint lines never contain the handle. Edit the TXT files in the data folder; changes load when the bot starts.
-              </div>
+              <strong>Funnel rules</strong> (when the snap is shared, % of chats with no snap, hint-first %) are not dashboard settings — edit <code>data\api_chat\config_rules.json</code> (button above opens the folder) and restart the bot. The same file format is used by the lab in <code>cmd\apitest\config_rules.json</code>. The Test API result shows the rules that were loaded.
             </div>
           </div>
 

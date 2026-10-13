@@ -120,11 +120,6 @@ function modeFromId(m) {
   return MODE_IDS[m] || m;
 }
 
-function intField(id, fallback) {
-  const el = document.getElementById(id);
-  const n = el ? parseInt(el.value, 10) : NaN;
-  return Number.isFinite(n) ? n : fallback;
-}
 
 // API settings live only in the API Chat panel (EVAChat Flow is pure TXT).
 function evaAISettings() {
@@ -133,15 +128,6 @@ function evaAISettings() {
     ai_base_url: document.getElementById("apichat-base-url").value.trim(),
     ai_model: document.getElementById("apichat-model").value.trim(),
     ai_api_key: document.getElementById("apichat-api-key").value.trim(),
-    api_settings_saved: true,
-    api_share_hot: intField("apichat-share-hot", 4),
-    api_share_warm: intField("apichat-share-warm", 6),
-    api_share_cold: intField("apichat-share-cold", 8),
-    api_no_share_percent: intField("apichat-no-share-percent", 30),
-    api_hint_percent: intField("apichat-hint-percent", 60),
-    api_no_share_min_replies: intField("apichat-no-share-min", 3),
-    api_no_share_max_replies: intField("apichat-no-share-max", 4),
-    api_no_share_strict: document.getElementById("apichat-no-share-strict").checked,
   };
 }
 
@@ -154,15 +140,6 @@ function apiChatTestSettings() {
     ai_base_url: document.getElementById("apichat-base-url").value.trim(),
     ai_model: document.getElementById("apichat-model").value.trim(),
     ai_api_key: document.getElementById("apichat-api-key").value.trim(),
-    api_settings_saved: true,
-    api_share_hot: intField("apichat-share-hot", 4),
-    api_share_warm: intField("apichat-share-warm", 6),
-    api_share_cold: intField("apichat-share-cold", 8),
-    api_no_share_percent: intField("apichat-no-share-percent", 30),
-    api_hint_percent: intField("apichat-hint-percent", 60),
-    api_no_share_min_replies: intField("apichat-no-share-min", 3),
-    api_no_share_max_replies: intField("apichat-no-share-max", 4),
-    api_no_share_strict: document.getElementById("apichat-no-share-strict").checked,
   };
 }
 
@@ -195,16 +172,6 @@ function fillForms(snapshot) {
   document.getElementById("apichat-base-url").value = snapshot.message.ai_base_url || "";
   document.getElementById("apichat-model").value = snapshot.message.ai_model || "";
   document.getElementById("apichat-api-key").value = snapshot.message.ai_api_key || "";
-  const saved = !!snapshot.message.api_settings_saved;
-  const pick = (v, d) => (saved && Number.isFinite(v) && v > 0 ? v : d);
-  document.getElementById("apichat-share-hot").value = pick(snapshot.message.api_share_hot, 4);
-  document.getElementById("apichat-share-warm").value = pick(snapshot.message.api_share_warm, 6);
-  document.getElementById("apichat-share-cold").value = pick(snapshot.message.api_share_cold, 8);
-  document.getElementById("apichat-no-share-percent").value = saved && Number.isFinite(snapshot.message.api_no_share_percent) ? snapshot.message.api_no_share_percent : 30;
-  document.getElementById("apichat-hint-percent").value = saved && Number.isFinite(snapshot.message.api_hint_percent) ? snapshot.message.api_hint_percent : 60;
-  document.getElementById("apichat-no-share-min").value = pick(snapshot.message.api_no_share_min_replies, 3);
-  document.getElementById("apichat-no-share-max").value = pick(snapshot.message.api_no_share_max_replies, 4);
-  document.getElementById("apichat-no-share-strict").checked = !!snapshot.message.api_no_share_strict;
   document.getElementById("proxy-enabled").checked = !!snapshot.proxy.enabled;
   document.getElementById("proxy-entries").value = snapshot.proxy.entries || "";
   document.getElementById("poll-min").value = snapshot.general.poll_min_seconds;

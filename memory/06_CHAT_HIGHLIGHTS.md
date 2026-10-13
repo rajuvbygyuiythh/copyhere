@@ -57,4 +57,7 @@ Earlier turns are summarised; from 2026-10-14 on, one entry per turn.
 10. Owner (2 screenshots): "faltu, EVAChat Flow-e keno API option? ar
     apitest-only + full source — root project ektai hobe, pls fix" → hybrid
     block removed from EVAChat; apitest merged into main module; single zip.
+11. Owner: "dashboard-e spammy option dekhabo na, clean rakho; oi option gulo
+    apitest folder-er config_rules.json-e rakho jeno hand-edit kora jay,
+    bot + apitest same file theke control" → done (rules.go, config_rules.json).
 

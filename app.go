@@ -559,7 +559,7 @@ func (a *App) OpenAPIChatDataFolder() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	summary := fmt.Sprintf("API Chat data folder ready: %s (persona.txt, snap_share.txt, snap_hint.txt)", dataRoot)
+	summary := fmt.Sprintf("API Chat data folder ready: %s (config_rules.json, persona.txt, snap_share.txt, snap_hint.txt)", dataRoot)
 	a.log("info", summary)
 	if openErr := exec.Command("explorer.exe", dataRoot).Start(); openErr != nil {
 		a.log("warn", fmt.Sprintf("Could not open folder: %v", openErr))

@@ -26,6 +26,7 @@ var DataFiles = map[string]string{
 	"persona.txt":    defaultPersona,
 	"snap_share.txt": defaultSnapShare,
 	"snap_hint.txt":  defaultSnapHint,
+	RulesFile:        defaultRulesJSON,
 }
 
 // Options is everything the dashboard passes to the engine.
@@ -185,6 +186,8 @@ type Engine struct {
 	share   *shareDeck
 	hint    *shareDeck
 	Warns   []string
+	// rulesFrom says where the funnel rules came from (file path or defaults).
+	rulesFrom string
 
 	mu     sync.Mutex
 	convos map[string]*convo
@@ -192,14 +195,25 @@ type Engine struct {
 
 const convoTTL = 3 * time.Hour
 
-// New loads persona.txt / snap_share.txt / snap_hint.txt from dataRoot
-// (missing files fall back to the embedded defaults) and returns the engine.
+// New loads persona.txt / snap_share.txt / snap_hint.txt / config_rules.json
+// from dataRoot (missing files fall back to the embedded defaults) and
+// returns the engine. When config_rules.json exists it overrides the funnel
+// fields of opt — the file is the single place those knobs are edited.
 func New(dataRoot string, opt Options) (*Engine, error) {
-	opt = opt.withDefaults()
 	if strings.TrimSpace(opt.APIKey) == "" {
 		return nil, fmt.Errorf("API Chat: the API key is empty")
 	}
-	e := &Engine{opt: opt, cfg: opt.config(), convos: map[string]*convo{}}
+	var warns []string
+	rulesPath := join(dataRoot, RulesFile)
+	rules, rerr := LoadRules(rulesPath)
+	if rerr == nil {
+		opt = rules.Apply(opt)
+	} else if !os.IsNotExist(rerr) {
+		warns = append(warns, RulesFile+": "+rerr.Error()+" (using built-in rules)")
+	}
+	opt = opt.withDefaults()
+	e := &Engine{opt: opt, cfg: opt.config(), convos: map[string]*convo{}, Warns: warns}
+	e.rulesFrom = rulesSource(rulesPath, rerr)
 
 	persona, err := loadPersona(join(dataRoot, "persona.txt"))
 	if err != nil {
@@ -248,10 +262,17 @@ func (e *Engine) loadDeck(path string, needPlaceholder bool, fallback []string) 
 
 // Describe is the one-line summary logged when the bot starts.
 func (e *Engine) Describe() string {
-	return fmt.Sprintf("API Chat: %s / %s | share at HOT %d / WARM %d / COLD %d | %d%% no-share (close after %d-%d replies), %d%% hint first | %d share styles (%s), %d hint lines (%s)",
-		e.opt.BaseURL, e.opt.Model, e.opt.ShareHot, e.opt.ShareWarm, e.opt.ShareCold,
-		e.opt.NoSharePercent, e.opt.NoShareMin, e.opt.NoShareMax, e.opt.HintPercent,
+	return fmt.Sprintf("API Chat: %s / %s | rules: %s (%s) | %d share styles (%s), %d hint lines (%s)",
+		e.opt.BaseURL, e.opt.Model, e.Rules().String(), e.rulesFrom,
 		e.share.count(), e.share.name(), e.hint.count(), e.hint.name())
+}
+
+// Rules returns the active funnel rules.
+func (e *Engine) Rules() Rules {
+	o := e.opt
+	return Rules{ShareHot: o.ShareHot, ShareWarm: o.ShareWarm, ShareCold: o.ShareCold,
+		NoSharePercent: o.NoSharePercent, NoShareMin: o.NoShareMin, NoShareMax: o.NoShareMax,
+		NoShareStrict: o.NoShareStrict, HintPercent: o.HintPercent}
 }
 
 // Test sends one tiny request and returns the model's answer.
