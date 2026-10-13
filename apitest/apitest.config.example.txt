@@ -1,0 +1,21 @@
+# apitest.config.txt — settings for apitest.exe (this file stays on your PC, it is git-ignored)
+# Any OpenAI-compatible API works. Featherless example:
+BASE_URL=https://api.featherless.ai/v1
+MODEL=deepseek-ai/DeepSeek-V4.1-Flash
+API_KEY=your-featherless-api-key
+
+# other providers:
+#   OpenAI      BASE_URL=https://api.openai.com/v1                                 MODEL=gpt-4o-mini
+#   Groq        BASE_URL=https://api.groq.com/openai/v1                            MODEL=llama-3.3-70b-versatile
+#   OpenRouter  BASE_URL=https://openrouter.ai/api/v1                              MODEL=deepseek/deepseek-chat
+#   Gemini      BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai   MODEL=gemini-2.0-flash
+#   DeepSeek    BASE_URL=https://api.deepseek.com/v1                               MODEL=deepseek-chat
+
+# optional tuning
+TIMEOUT_SEC=60
+MAX_TOKENS=80
+TEMPERATURE=0.9
+HISTORY=30
+AGE_MIN=20
+AGE_MAX=25
+COUNTRIES=uk,germany,france,italy,spain,netherlands,sweden,poland,ireland,norway
