@@ -89,7 +89,14 @@ var (
 	snapAskRe   = regexp.MustCompile(`(?i)(\bsnap\b|\bsc\b|\bsnapchat\b|\bsnp\b|\binsta\b|\big\b|\binstagram\b|\btelegram\b|\btg\b|\bdiscord\b|\bnumber\b|\bwhatsapp\b)`)
 	refuseRe    = regexp.MustCompile(`(?i)\b(no|nope|nah|naw|dont have|don't have|do not have|not on|deleted|never|not really)\b`)
 	yesRe       = regexp.MustCompile(`(?i)\b(yes+|yea+h*|yep+|yeop|ye|ya|sure|ofc|ok+|okay|k|yup|i do|got it|send|drop|gimme|add me|bet|fr|why not|lets go|let's go)\b`)
-	ageRe       = []*regexp.Regexp{regexp.MustCompile(`(?i)\b([mf])[\s\-_. ]{0,2}(\d{1,2})\b`), regexp.MustCompile(`(?i)\b(\d{1,2})[\s\-_. ]{0,2}([mf])\b`), regexp.MustCompile(`(?i)\bi'?m (\d{2})\b`), regexp.MustCompile(`(?i)\b(\d{2}) ?(yo|years? old|yrs)\b`)}
+	ageRe       = []*regexp.Regexp{
+		regexp.MustCompile(`(?i)\b([mf])[\s\-_./ ]{0,2}(\d{1,2})\b`),
+		regexp.MustCompile(`(?i)\b(\d{1,2})[\s\-_./ ]{0,2}([mf])\b`),
+		regexp.MustCompile(`(?i)\b(male|female|guy|girl|boy|man|woman|dude)[\s,]{0,3}(\d{1,2})\b`),
+		regexp.MustCompile(`(?i)\b(\d{1,2})[\s,]{0,3}(male|female|guy|girl|boy|man|woman|dude)\b`),
+		regexp.MustCompile(`(?i)\bi'?m (\d{2})\b`),
+		regexp.MustCompile(`(?i)\b(\d{2}) ?(yo|years? old|yrs)\b`),
+	}
 	byeRe       = regexp.MustCompile(`(?i)\b(bye|gtg|g2g|brb|ttyl|cya|gotta go|leaving|later)\b`)
 	questionRe  = regexp.MustCompile(`(?i)\b(wyd|hbu|wbu|how|what|where|why|when|who|r u|are u|do u|u got|got any|asl|age)\b`)
 	botQRe      = regexp.MustCompile(`(?i)(r u (a )?(bot|real|fake|ai|human)|are (u|you) (a )?(bot|real|fake|ai|human)|\bbot\b|\bfake\b|\bscam|\bai\b|\breal\?)`)
@@ -98,6 +105,7 @@ var (
 	lonelyRe    = regexp.MustCompile(`(?i)\b(bored|boring|alone|lonely|cant sleep|can't sleep|nothing much|nm|nothin|chilling|chillin)\b`)
 	lowEffortRe = regexp.MustCompile(`(?i)^(k|kk|ok|okay|oh|ohh|lol|lmao|haha+|hmm+|cool|nice|yea+h*|ya|yep|nah|idk|same|true|fr|wow|good|fine|nothing|nm|u\??|wbu\??|hbu\??|and\??|so\??|\W*)$`)
 	hesitantRe  = regexp.MustCompile(`(?i)\b(idk|maybe|why|what for|hmm+|depends|not sure|later|dunno|we'?ll see|for what)\b`)
+	aslAskRe    = regexp.MustCompile(`(?i)(\basl\b|\bage\b|how old|\bold r u|\bold are (u|you)|\bm or f\b|\bf or m\b|\bgender\b|r u a (girl|guy|boy|female|male)|are (u|you) a (girl|guy|boy|female|male)|\bgirl or\b|^(u|you|wbu|hbu|and u|n u)\s*\??$)`)
 	addedRe     = regexp.MustCompile(`(?i)\b(added|sent (u|you)? ?(a )?(req|request)|just added|adding|requested|follow(ed)?)\b`)
 )
 
@@ -156,6 +164,7 @@ type director struct {
 	userLowEffort bool
 	userShared    bool // told something about themselves
 	userAdded     bool // after the share: "added u"
+	userAslAsk    bool // "asl?", "how old r u", "m or f", "u?"
 }
 
 type plan struct {
@@ -188,6 +197,10 @@ func (d *director) observe(text string) {
 	d.userLaugh = laughRe.MatchString(low)
 	d.userLonely = lonelyRe.MatchString(low)
 	d.userAdded = d.shared && addedRe.MatchString(low)
+	d.userAslAsk = aslAskRe.MatchString(low)
+	if d.userAslAsk {
+		d.userQuestion = true
+	}
 	_, _, hasAsl := genderAge(low)
 	d.userLowEffort = !hasAsl && !d.userAskedSnap && (words <= 2 && lowEffortRe.MatchString(low) || len([]rune(low)) <= 3)
 	d.userShared = !d.userQuestion && !d.userLowEffort && words >= 4
@@ -285,6 +298,8 @@ func (d *director) plan(cfg config, turn int, userText string) plan {
 	p := plan{Mood: d.mood(turn)}
 	base := "reply to exactly what they just said"
 	switch {
+	case d.userAslAsk:
+		base = "they ask your asl / age / gender: answer in the short app style 'f <your age>' (add your country only if they asked where from), nothing like 'female' or 'i am a girl'"
 	case d.userQuestion:
 		base = "they asked you something: answer it directly first, in your own words"
 	case d.userShared:
@@ -376,9 +391,15 @@ func (d *director) plan(cfg config, turn int, userText string) plan {
 	case turn == 1:
 		p.Why = "opener"
 		p.Instruction = base + ". greet back casually and ask one quick thing about them (age / where from / wyd)."
+	case d.userAslAsk:
+		p.Why = "asl answer"
+		p.Instruction = base + ". then one short question back (their asl if u don't know it yet, otherwise wyd)."
 	case turn == 2 && d.userAge == 0:
 		p.Why = "asl"
-		p.Instruction = base + ". if they didn't say their age/gender yet, ask asl style (like 'f 21, u?') with your persona age."
+		p.Instruction = base + ". they didn't say their age/gender yet: give yours the short way ('f <age>') and ask theirs, like 'f 21, u?'."
+	case turn == 2 && d.userAge > 0:
+		p.Why = "asl back"
+		p.Instruction = base + ". they gave their asl: react in 1-3 words, give yours the same short way ('f <age>' + where from) and ask one easy thing (wyd / what brings u here)."
 	case d.coldStreak >= 2:
 		p.Why = "cold streak -> hook"
 		hooks := []string{
@@ -839,12 +860,18 @@ func genderAge(low string) (string, int, bool) {
 		}
 		var g, a string
 		switch i {
-		case 0:
+		case 0, 2:
 			g, a = m[1], m[2]
-		case 1:
+		case 1, 3:
 			a, g = m[1], m[2]
 		default:
 			a = m[1]
+		}
+		switch g {
+		case "male", "guy", "boy", "man", "dude":
+			g = "m"
+		case "female", "girl", "woman":
+			g = "f"
 		}
 		n, err := strconv.Atoi(a)
 		if err == nil && n >= 13 && n <= 99 {
