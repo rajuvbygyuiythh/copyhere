@@ -6,9 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"os/exec"
 	"runtime"
+	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"chitchatbot/internal/model"
@@ -27,6 +31,13 @@ type RodBackend struct {
 	disablePageRecovery bool
 	stopProxyAuth       func()
 	options             Options
+	// proc/exitCh own the Chrome process this backend launched (launchRodBrowser
+	// starts it manually, so rod's CDP Browser.close alone can leave the whole
+	// Chrome process tree orphaned when Stop fails or the connection died).
+	proc      *exec.Cmd
+	exitCh    chan error
+	closed    atomic.Bool
+	closeOnce sync.Once
 }
 
 func (b *RodBackend) Name() string {
@@ -34,27 +45,28 @@ func (b *RodBackend) Name() string {
 }
 
 func (b *RodBackend) Start(ctx context.Context, options Options) error {
-	controlURL, err := launchRodBrowser(ctx, options)
+	b.closed.Store(false)
+	controlURL, proc, exitCh, err := launchRodBrowser(ctx, options)
 	if err != nil {
 		return err
 	}
+	// Own the launched process from this moment on: any later failure must go
+	// through b.Close(), which kills the process tree if CDP close fails.
+	b.proc = proc
+	b.exitCh = exitCh
 
 	browser := rod.New().
 		ControlURL(controlURL).
 		NoDefaultDevice()
+	b.browser = browser
 
 	if err := browser.Connect(); err != nil {
+		_ = b.Close()
 		return err
 	}
 
 	if options.Proxy != nil && options.Proxy.HasAuth() {
-		stopProxyAuth := startRodProxyAuth(ctx, browser, options.Proxy.Username, options.Proxy.Password)
-		defer func() {
-			if b.browser == nil && stopProxyAuth != nil {
-				stopProxyAuth()
-			}
-		}()
-		b.stopProxyAuth = stopProxyAuth
+		b.stopProxyAuth = startRodProxyAuth(ctx, browser, options.Proxy.Username, options.Proxy.Password)
 	}
 
 	b.options = options
@@ -63,23 +75,22 @@ func (b *RodBackend) Start(ctx context.Context, options Options) error {
 	// before the app loads, then navigate.
 	page, err := browser.Page(proto.TargetCreateTarget{URL: "about:blank"})
 	if err != nil {
-		_ = browser.Close()
+		_ = b.Close()
 		return err
 	}
 	if err := b.preparePage(page); err != nil {
 		fmt.Printf("rod: page emulation setup failed: %v\n", err)
 	}
 	if err := page.Navigate(options.StartURL); err != nil {
-		_ = browser.Close()
+		_ = b.Close()
 		return err
 	}
 
 	if err := page.WaitLoad(); err != nil && !isRecoverablePageError(err) {
-		_ = browser.Close()
+		_ = b.Close()
 		return err
 	}
 
-	b.browser = browser
 	b.page = page
 	b.startURL = options.StartURL
 	b.disablePageRecovery = options.DisablePageRecovery
@@ -143,10 +154,10 @@ func (b *RodBackend) Inspect(ctx context.Context) (Inspection, error) {
 	return result, err
 }
 
-func launchRodBrowser(ctx context.Context, options Options) (string, error) {
+func launchRodBrowser(ctx context.Context, options Options) (string, *exec.Cmd, chan error, error) {
 	debugPort, err := reserveDebugPort()
 	if err != nil {
-		return "", err
+		return "", nil, nil, err
 	}
 
 	l := launcher.New().
@@ -169,14 +180,14 @@ func launchRodBrowser(ctx context.Context, options Options) (string, error) {
 
 	bin, err := resolveRodBrowserBinary(options.UserDataDir)
 	if err != nil {
-		return "", err
+		return "", nil, nil, err
 	}
 	l.Bin(bin)
 
 	cmd := exec.Command(bin, l.FormatArgs()...)
 
 	if err := cmd.Start(); err != nil {
-		return "", err
+		return "", nil, nil, err
 	}
 
 	exitCh := make(chan error, 1)
@@ -189,10 +200,10 @@ func launchRodBrowser(ctx context.Context, options Options) (string, error) {
 		if cmd.Process != nil {
 			_ = cmd.Process.Kill()
 		}
-		return "", err
+		return "", nil, nil, err
 	}
 
-	return controlURL, nil
+	return controlURL, cmd, exitCh, nil
 }
 
 // applyRodLaunchOptions adds the stealth / low-memory flags. Rod's defaults
@@ -289,15 +300,74 @@ func waitForRodDebugURL(ctx context.Context, exitCh <-chan error, port int) (str
 	}
 }
 
+// Close ALWAYS leaves the Chrome process this backend launched fully dead:
+// graceful CDP Browser.close first, then a forced process-tree kill if the
+// process is still alive (CDP close alone silently no-ops when the connection
+// already broke — the old "Stop doesn't totally close the browser" bug).
+// Idempotent: the fresh-window path and its worker both close the backend.
 func (b *RodBackend) Close() error {
-	if b.stopProxyAuth != nil {
-		b.stopProxyAuth()
-		b.stopProxyAuth = nil
+	b.closed.Store(true)
+	var closeErr error
+	b.closeOnce.Do(func() {
+		if b.stopProxyAuth != nil {
+			b.stopProxyAuth()
+			b.stopProxyAuth = nil
+		}
+		if b.browser != nil {
+			// rod's Browser.Close has no timeout; never let a hung CDP
+			// connection block Stop forever.
+			done := make(chan error, 1)
+			browser := b.browser
+			go func() { done <- browser.Close() }()
+			select {
+			case closeErr = <-done:
+			case <-time.After(4 * time.Second):
+			}
+			b.browser = nil
+			b.page = nil
+		}
+		if err := b.ensureProcessExited(); closeErr == nil {
+			closeErr = err
+		}
+	})
+	return closeErr
+}
+
+// ensureProcessExited waits briefly for Chrome to exit, then force-kills the
+// whole process tree (Windows spawns renderer/GPU children that survive a
+// plain Process.Kill of the parent).
+func (b *RodBackend) ensureProcessExited() error {
+	if b.proc == nil || b.proc.Process == nil {
+		return nil
 	}
-	if b.browser != nil {
-		return b.browser.Close()
+	if b.exitCh != nil {
+		select {
+		case <-b.exitCh:
+			return nil
+		case <-time.After(2 * time.Second):
+		}
 	}
-	return nil
+	killBrowserProcessTree(b.proc.Process)
+	if b.exitCh != nil {
+		select {
+		case <-b.exitCh:
+			return nil
+		case <-time.After(3 * time.Second):
+		}
+	}
+	return fmt.Errorf("rod: browser process %d did not exit after kill", b.proc.Process.Pid)
+}
+
+func killBrowserProcessTree(proc *os.Process) {
+	if proc == nil {
+		return
+	}
+	if runtime.GOOS == "windows" {
+		// /T kills the entire child tree (renderers, GPU, network service).
+		_ = exec.Command("taskkill", "/F", "/T", "/PID", strconv.Itoa(proc.Pid)).Run()
+		return
+	}
+	_ = proc.Kill()
 }
 
 func startRodProxyAuth(parent context.Context, browser *rod.Browser, username string, password string) func() {
@@ -481,6 +551,11 @@ func (b *RodBackend) Fetch(ctx context.Context, req FetchRequest) (FetchResponse
 }
 
 func (b *RodBackend) withPageRetry(ctx context.Context, run func(page *rod.Page) error) error {
+	if b.closed.Load() {
+		// Stopped/closed backends never recover a page: recovery used to
+		// recreate a tab that looked like the browser "auto reopened".
+		return ErrPageUnavailable
+	}
 	page, err := b.currentPage(ctx)
 	if err != nil {
 		return err
@@ -512,7 +587,7 @@ func (b *RodBackend) currentPage(ctx context.Context) (*rod.Page, error) {
 }
 
 func (b *RodBackend) recoverPage(ctx context.Context) (*rod.Page, error) {
-	if b.browser == nil {
+	if b.closed.Load() || b.browser == nil {
 		return nil, ErrPageUnavailable
 	}
 

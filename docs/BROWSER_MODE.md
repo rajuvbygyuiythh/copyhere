@@ -196,3 +196,35 @@ failed lookup leaves the PC's own timezone. Every window logs one
 launch.` line, and `[browser] check:` after login shows the zone the
 site actually sees (it also flows into the per-message fingerprint,
 which carries the browser timezone).
+
+## Stop fully closes the browser (fix, UI 2026-10-14g)
+
+Owner report: after one browser run, dashboard Stop did not totally close
+the browser, and the browser seemed to run/reopen by itself. Three causes,
+all fixed:
+
+1. **Rod closed over CDP only.** `launchRodBrowser` starts Chrome manually
+   but the backend never kept the process; `Close()` relied on CDP
+   `Browser.close` alone, so a dead/hung connection left the whole Chrome
+   process tree orphaned on screen. The backend now owns the launched
+   process: graceful CDP close (4 s cap), then a forced process-tree kill
+   (`taskkill /F /T` on Windows) and a wait until the process really
+   exited. `Close()` is idempotent — the worker and the fresh-window path
+   both close the same backend safely.
+2. **Closed browsers could resurrect a tab.** Page recovery recreated a
+   page whenever the session was lost, with no notion of "stopped". Both
+   backends now carry a closed flag: after Stop, page recovery and further
+   page work return `ErrPageUnavailable` instead of recreating anything.
+3. **Stop never reached fresh windows waiting for login.** A Run Fresh
+   Browsers window only became stoppable after the live-worker handover,
+   so Stop during the manual-login wait did nothing to it. Fresh windows
+   now register their cancel with the app the moment they open, and
+   `StopBot` cancels StartBot workers + live workers + fresh windows and
+   then **waits** (up to ~12 s) until every window reports closed,
+   logging `Stop complete: all browser windows are closed.` App shutdown
+   gets the same guarantee. The pre-close session save is capped at 8 s
+   so a hung read can never keep a window alive.
+
+Note: the Live Wall auto-open (Settings → Live Wall) still opens this
+PC's *default* browser at the wall page on Start — unrelated to the bot
+browser windows, and disableable in Settings.

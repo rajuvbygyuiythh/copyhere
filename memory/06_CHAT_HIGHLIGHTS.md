@@ -75,3 +75,15 @@ Earlier turns are summarised; from 2026-10-14 on, one entry per turn.
     socket tap + /match/active diye incoming fix, outgoing আগের in-page
     POST-ই (id পেলেই কাজ করে); dashboard timezone option remove, proxy
     exit country থেকে backend-e auto timezone launch-er আগে set.
+
+14. Owner: "browser ekbar run korle ami dashbord theke stop dileo brower
+    tottaly close hocche na,,pls fix it,,auto run browser hoye jacche,but
+    ami 1 ta browser run korsi only" → P12: আসল কারণ তিনটা — (1) rod
+    backend Chrome process-এর handle ফেলে দিত, শুধু CDP close-এ ভরসা
+    করত → failed close = পুরো Chrome tree orphan; (2) closed backend-এর
+    page recovery আবার tab বানাতে পারত (auto-reopen ভাব); (3) fresh
+    window login-wait অবস্থায় Stop-এর কাছে registered-ই ছিল না, আর
+    StopBot wait না করেই ফিরে আসত। Fix: process-tree force kill + বন্ধ
+    backend-এ recovery নিষেধ + fresh cancel registry + StopBot এখন সব
+    window সত্যিই বন্ধ না হওয়া পর্যন্ত wait করে log দেয় "Stop
+    complete: all browser windows are closed."

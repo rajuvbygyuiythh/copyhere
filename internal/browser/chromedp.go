@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"chitchatbot/internal/model"
@@ -23,6 +24,7 @@ type ChromeDPBackend struct {
 	ctx         context.Context
 	allocCancel context.CancelFunc
 	cancel      context.CancelFunc
+	closed      atomic.Bool
 }
 
 func (b *ChromeDPBackend) Name() string {
@@ -30,6 +32,7 @@ func (b *ChromeDPBackend) Name() string {
 }
 
 func (b *ChromeDPBackend) Start(parent context.Context, options Options) error {
+	b.closed.Store(false)
 	execOpts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.UserDataDir(options.UserDataDir),
 		chromedp.Flag("headless", options.Headless),
@@ -137,11 +140,16 @@ func (b *ChromeDPBackend) Start(parent context.Context, options Options) error {
 }
 
 func (b *ChromeDPBackend) Close() error {
+	b.closed.Store(true)
 	if b.cancel != nil {
 		b.cancel()
+		b.cancel = nil
 	}
 	if b.allocCancel != nil {
+		// Cancelling the allocator context kills the Chrome process tree
+		// chromedp launched (its exec command is tied to this context).
 		b.allocCancel()
+		b.allocCancel = nil
 	}
 	return nil
 }
@@ -331,6 +339,10 @@ func windowSizeParts(size string) (int, int) {
 }
 
 func (b *ChromeDPBackend) eval(ctx context.Context, expression string, dest any) error {
+	if b.closed.Load() || b.ctx == nil {
+		// Never touch (or relaunch) a browser that Stop already closed.
+		return ErrPageUnavailable
+	}
 	var raw []byte
 	if err := chromedp.Run(b.ctx, chromedp.Evaluate(expression, &raw)); err != nil {
 		return err

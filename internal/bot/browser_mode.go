@@ -409,7 +409,10 @@ func (s *browserSession) saveAndClose(previous model.LoginInfo, reason string) {
 	s.fetchMu.Lock()
 	defer s.fetchMu.Unlock()
 	logf(s.cfg, "[browser] Closing window — reason: %s. Saving the session first.\n", reason)
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	// Short on purpose: Stop waits for this, and the backend close after it
+	// force-kills the browser process anyway — a hung session read must
+	// never keep the window alive.
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
 
 	login, err := s.backend.CaptureSession(ctx)

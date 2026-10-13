@@ -297,3 +297,13 @@ auto timezone resolved in the backend before every window launch
 still stuck, the missing `[browser] Match detected via …` log line + the
 `[api]` trace of `/match/active` will show which source the site feeds.
 Details: `docs/BROWSER_MODE.md` (last two sections), `03_SESSION_LOG.md`.
+
+## P12 — Stop fully closes the browser — SHIPPED 2026-10-14 (UI 2026-10-14g)
+Owner: dashboard Stop did not totally close a run browser; it seemed to
+auto-run/reopen although only 1 browser was started. Fixed: rod backend
+owns the manually launched Chrome process and force-kills the tree after
+a timed graceful CDP close; closed backends refuse page recovery; fresh
+windows register with Stop from the moment they open; StopBot waits
+until every window is really closed. Details:
+`docs/BROWSER_MODE.md` ("Stop fully closes the browser"),
+`03_SESSION_LOG.md`. Awaiting the owner's real-Windows run.

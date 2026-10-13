@@ -35,6 +35,11 @@ type App struct {
 	botCancel      context.CancelFunc
 	activeWorkers  map[string]bool
 	liveWorkers    map[string]context.CancelFunc // Browser-mode handover workers (Run Fresh Browsers), keyed by login file
+	botDone        chan struct{}                 // closed when the current StartBot run fully finished
+	freshMu        sync.Mutex
+	freshCancels   map[uint64]context.CancelFunc // fresh windows Stop must reach even before handover
+	freshSeq       uint64
+	freshWG        sync.WaitGroup // fresh windows (login wait + handover) still open
 	licenseKey     string
 	licenseInvalid bool
 	licenseReason  string
@@ -380,7 +385,15 @@ func (a *App) RunFreshBrowsers(count int) error {
 				selectedProxy = &nextProxy
 			}
 		}
-		go a.runFreshBrowser(profileDir, profileName, browserSettings, selectedProxy, index, count)
+		a.freshMu.Lock()
+		a.freshSeq++
+		freshID := a.freshSeq
+		a.freshMu.Unlock()
+		a.freshWG.Add(1)
+		go func() {
+			defer a.freshWG.Done()
+			a.runFreshBrowser(freshID, profileDir, profileName, browserSettings, selectedProxy, index, count)
+		}()
 	}
 
 	return nil
@@ -654,6 +667,8 @@ func (a *App) StartBot() error {
 	runID := a.runID
 	a.running = true
 	a.botCancel = cancel
+	done := make(chan struct{})
+	a.botDone = done
 	a.mu.Unlock()
 
 	a.emitStatus(true)
@@ -662,6 +677,7 @@ func (a *App) StartBot() error {
 
 	configs, err := a.buildBotConfigs()
 	if err != nil {
+		close(done)
 		a.mu.Lock()
 		a.running = false
 		a.botCancel = nil
@@ -703,6 +719,7 @@ func (a *App) StartBot() error {
 
 	go func() {
 		wg.Wait()
+		close(done)
 
 		a.mu.Lock()
 		if a.runID == runID {
@@ -721,9 +738,16 @@ func (a *App) StartBot() error {
 	return nil
 }
 
+// StopBot cancels EVERYTHING that can own a browser window — StartBot
+// workers, live handover workers AND fresh windows still waiting for a manual
+// login — then WAITS (bounded) until they have actually finished closing
+// their windows. The old Stop only cancelled the first two groups and
+// returned instantly, so the dashboard showed "stopped" while the browser
+// was still alive (or an unregistered fresh window never heard Stop at all).
 func (a *App) StopBot() error {
 	a.mu.Lock()
 	cancel := a.botCancel
+	done := a.botDone
 	a.botCancel = nil
 	a.running = false
 	live := make([]context.CancelFunc, 0, len(a.liveWorkers))
@@ -732,7 +756,14 @@ func (a *App) StopBot() error {
 	}
 	a.mu.Unlock()
 
-	if cancel == nil && len(live) == 0 {
+	a.freshMu.Lock()
+	fresh := make([]context.CancelFunc, 0, len(a.freshCancels))
+	for _, c := range a.freshCancels {
+		fresh = append(fresh, c)
+	}
+	a.freshMu.Unlock()
+
+	if cancel == nil && len(live) == 0 && len(fresh) == 0 {
 		return nil
 	}
 	if cancel != nil {
@@ -741,15 +772,69 @@ func (a *App) StopBot() error {
 	for _, c := range live {
 		c()
 	}
+	for _, c := range fresh {
+		c()
+	}
 	a.clearActiveWorkers()
 	bot.ClearAllWorkerPhases()
-	if len(live) > 0 {
-		a.log("info", fmt.Sprintf("Stopping all bot workers (%d live browser window(s) will save their session and close).", len(live)))
+	if len(live) > 0 || len(fresh) > 0 {
+		a.log("info", fmt.Sprintf("Stopping all bot workers (%d live + %d fresh browser window(s) will save their session and close).", len(live), len(fresh)))
 	} else {
 		a.log("info", "Stopping all bot workers.")
 	}
 	a.emitStatus(false)
+	a.waitForBrowsersClosed(done, 12*time.Second)
 	return nil
+}
+
+// waitForBrowsersClosed blocks until the bot run, the live handover workers
+// and every fresh window report finished, or the timeout passes. Stop (and
+// app shutdown) must not return while a browser can still be open.
+func (a *App) waitForBrowsersClosed(done chan struct{}, timeout time.Duration) {
+	deadline := time.Now().Add(timeout)
+	if done != nil {
+		select {
+		case <-done:
+		case <-time.After(timeout):
+		}
+		if time.Now().After(deadline) {
+			a.log("warn", "Stop: some workers did not finish closing within the wait limit; their browser windows are being force-closed by the backend.")
+			return
+		}
+	}
+	freshDone := make(chan struct{})
+	go func() {
+		a.freshWG.Wait()
+		close(freshDone)
+	}()
+	remaining := time.Until(deadline)
+	if remaining < 0 {
+		remaining = 0
+	}
+	select {
+	case <-freshDone:
+		a.log("info", "Stop complete: all browser windows are closed.")
+	case <-time.After(remaining):
+		a.log("warn", "Stop: some fresh browser windows did not finish closing within the wait limit; their browser processes are being force-closed by the backend.")
+	}
+}
+
+// registerFreshCancel lets dashboard Stop reach a fresh window from the
+// moment it opens — including the long manual-login wait, before any
+// live-worker handover is registered.
+func (a *App) registerFreshCancel(id uint64, cancel context.CancelFunc) {
+	a.freshMu.Lock()
+	if a.freshCancels == nil {
+		a.freshCancels = map[uint64]context.CancelFunc{}
+	}
+	a.freshCancels[id] = cancel
+	a.freshMu.Unlock()
+}
+
+func (a *App) unregisterFreshCancel(id uint64) {
+	a.freshMu.Lock()
+	delete(a.freshCancels, id)
+	a.freshMu.Unlock()
 }
 
 // registerLiveWorker records a Browser-mode handover worker so Stop can end
@@ -1049,9 +1134,13 @@ func safeProfileName(name string) string {
 	return name
 }
 
-func (a *App) runFreshBrowser(profileDir string, profileName string, settings model.BrowserSettings, selectedProxy *proxy.Entry, index int, total int) {
+func (a *App) runFreshBrowser(freshID uint64, profileDir string, profileName string, settings model.BrowserSettings, selectedProxy *proxy.Entry, index int, total int) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	// Dashboard Stop must reach this window even while it is still waiting
+	// for a manual login (before any live-worker handover exists).
+	a.registerFreshCancel(freshID, cancel)
+	defer a.unregisterFreshCancel(freshID)
 
 	// Keep disposable browser data outside the repo so wails dev file watching
 	// doesn't restart the app when a fresh browser run creates a new directory.
