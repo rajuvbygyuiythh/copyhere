@@ -146,7 +146,7 @@
       <section class="tab-panel" data-panel="message">
         <header class="panel-header">
           <div>
-            <h1>Message <span id="ui-build-tag" style="font-size:0.5em; font-weight:normal; color:var(--muted); vertical-align:middle;">UI build 2026-10-14b · 4 chat modes · browser mode</span></h1>
+            <h1>Message <span id="ui-build-tag" style="font-size:0.5em; font-weight:normal; color:var(--muted); vertical-align:middle;">UI build 2026-10-14c · 4 chat modes · 2 browser run modes</span></h1>
             <p>One line equals one bot message step. Line 1 is first message, line 2 is second reply, line 3 is third reply, and so on.</p>
           </div>
         </header>
@@ -267,17 +267,28 @@
             If the saved login is missing or expired, the selected backend will open the login browser.
           </div>
 
-          <div class="chat-mode-card" style="margin-top:10px;">
-            <label class="checkbox-row" style="margin-bottom:6px;">
-              <input type="checkbox" id="browser-mode">
-              <span><strong>Browser mode</strong> — keep the real browser window open and chat through it</span>
+          <h3 style="margin:14px 0 6px;">Run mode <span id="browser-mode-status" class="hint-text" style="margin-left:8px;"></span></h3>
+          <div class="browser-options" id="browser-mode-options">
+            <label class="browser-choice" id="browser-mode-option-classic">
+              <div class="browser-choice-title">
+                <input type="radio" name="browser-run-mode" id="browser-mode-classic" value="classic">
+                <span>1. Classic — login capture only</span>
+              </div>
+              <div class="browser-choice-description">
+                Exactly as before. The browser opens only when the saved login is missing or expired, saves <code>login_info.json</code> and <strong>closes right after login</strong>. The bot then chats from the app (API + websocket). Headless applies here.
+              </div>
             </label>
-            <div class="hint-text">
-              Off = the bot works exactly as before (browser only for login, then API calls from the app).<br>
-              On = one visible browser window per account opens at Start and <strong>stays open until you press Stop</strong>: login, matching and every message happen through that window (real cookies, real browser, no websocket). If the session expires the bot waits for you to log in again in the window. <strong>Stop</strong> saves the session (<code>login_info.json</code>) and closes the window, so the next Start logs in automatically.<br>
-              Notes: Headless is ignored in this mode (the window must be visible). Each account = one Chrome window (about 300–500 MB RAM), so use it for a few accounts. The proxy is picked per window at Start and stays fixed. New replies are read through the window every few seconds (no websocket), so a reply can take up to about 5 seconds to be noticed.
-            </div>
+            <label class="browser-choice" id="browser-mode-option-live">
+              <div class="browser-choice-title">
+                <input type="radio" name="browser-run-mode" id="browser-mode" value="live">
+                <span>2. Browser mode — live window</span>
+              </div>
+              <div class="browser-choice-description">
+                One visible browser window per account opens at Start and <strong>stays open until you press Stop</strong> (or close it yourself). Login, matching and every message happen through that window — real cookies, real browser, no websocket; replies are read through the window every few seconds. Session expired → log in again in the window, the bot resumes. <strong>Stop</strong> saves the session and closes the window; next Start logs in automatically. Headless is ignored. One Chrome per account (~300–500 MB), so use it for a few accounts.
+              </div>
+            </label>
           </div>
+          <div class="hint-text">Clicking a card saves the mode immediately. The Start log prints which mode is running.</div>
 
           <div class="fresh-browser-card">
             <div>

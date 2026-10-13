@@ -24,13 +24,22 @@ try { window.eval(fs.readFileSync(dir + "app.js", "utf8")); } catch (e) { errors
 window.document.dispatchEvent(new window.Event("DOMContentLoaded"));
 setTimeout(async () => {
   const d = window.document;
-  const cb = d.getElementById("browser-mode");
-  console.log("checkbox exists:", !!cb, "checked from snapshot:", cb && cb.checked);
-  cb.checked = false;
+  const live = d.getElementById("browser-mode");
+  const classic = d.getElementById("browser-mode-classic");
+  console.log("radios exist:", !!live && !!classic, "live checked from snapshot:", live && live.checked, "status:", d.getElementById("browser-mode-status").textContent);
+  // click the classic card → auto-save with browser_mode:false
+  classic.checked = true;
+  classic.dispatchEvent(new window.Event("change", { bubbles: true }));
+  await new Promise(r => setTimeout(r, 50));
+  const auto = calls.filter(c => c[0] === "SaveBrowserSettings").pop();
+  console.log("auto-save payload:", JSON.stringify(auto && auto[1][0]));
+  // Save button with live selected
+  live.checked = true;
   d.getElementById("browser-form").dispatchEvent(new window.Event("submit", { cancelable: true }));
   await new Promise(r => setTimeout(r, 50));
-  const save = calls.find(c => c[0] === "SaveBrowserSettings");
-  console.log("SaveBrowserSettings payload:", JSON.stringify(save && save[1][0]));
+  const save = calls.filter(c => c[0] === "SaveBrowserSettings").pop();
+  console.log("Save button payload:", JSON.stringify(save && save[1][0]));
   console.log("errors:", errors.length ? errors : "none");
-  process.exit(errors.length || !cb || !save || save[1][0].browser_mode !== false ? 1 : 0);
+  const ok = !errors.length && live && classic && auto && auto[1][0].browser_mode === false && save && save[1][0].browser_mode === true;
+  process.exit(ok ? 0 : 1);
 }, 300);

@@ -328,11 +328,11 @@ func (a *App) SaveBrowserSettings(settings model.BrowserSettings) error {
 	if err := a.uiStore.SaveBrowserSettings(settings); err != nil {
 		return err
 	}
-	mode := "normal"
+	mode := "1. CLASSIC (login capture only, closes after login)"
 	if settings.BrowserMode {
-		mode = "browser mode (window stays open, chat through the browser)"
+		mode = "2. BROWSER MODE (live window stays open, chat through the browser)"
 	}
-	a.log("info", fmt.Sprintf("Browser settings saved. Backend=%s Profile=%s Mode=%s", settings.Backend, settings.Profile, mode))
+	a.log("info", fmt.Sprintf("Browser settings saved. Backend=%s Profile=%s RunMode=%s", settings.Backend, settings.Profile, mode))
 	return nil
 }
 
@@ -853,8 +853,11 @@ func (a *App) buildBotConfigs() ([]bot.Config, error) {
 
 	assignments := workerplan.AssignProfileWorkers(profiles, proxyEntries)
 	configs := make([]bot.Config, 0, len(assignments))
+	if !browserSettings.BrowserMode {
+		a.log("info", "Browser page run mode: 1. CLASSIC — browser only for login capture (closes after login), chat from the app.")
+	}
 	if browserSettings.BrowserMode {
-		a.log("info", fmt.Sprintf("Browser mode: %d visible browser window(s) will stay open until Stop; all chat traffic goes through them (no websocket).", len(assignments)))
+		a.log("info", fmt.Sprintf("Browser page run mode: 2. BROWSER MODE (live window) — %d visible browser window(s) will stay open until Stop; all chat traffic goes through them (no websocket).", len(assignments)))
 		if len(assignments) > 10 {
 			a.log("warn", fmt.Sprintf("Browser mode with %d accounts = %d Chrome windows (about 300-500 MB RAM each). Consider fewer accounts or the normal mode for the rest.", len(assignments), len(assignments)))
 		}

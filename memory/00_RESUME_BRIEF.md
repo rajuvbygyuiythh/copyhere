@@ -1,4 +1,4 @@
-# 00 — RESUME BRIEF (always current; last update: 2026-10-14 (P8 final recheck done), Asia/Dhaka)
+# 00 — RESUME BRIEF (always current; last update: 2026-10-14 (P8 two run-mode cards), Asia/Dhaka)
 
 ## Where we are (one paragraph)
 
@@ -14,6 +14,18 @@ chat from `snap_usernames.txt`. Owner tests apitest on his PC against the real
 API and pastes output; agent fixes bugs from that output.
 
 ## Last thing done (most recent turn first)
+
+000000000. Owner: "after login the browser still auto-closes; make the two
+        browser modes SEPARATE". Browser page now has two radio CARDS under
+        "Run mode": 1. Classic (login capture only, closes after login — old
+        behaviour untouched) / 2. Browser mode (live window). Clicking a card
+        auto-saves (`browser_mode` bool unchanged in JSON); status text shows
+        the current mode; Start log prints `Browser page run mode: 1. CLASSIC`
+        or `2. BROWSER MODE`. Also in browser mode a failed cycle no longer
+        stops the worker/closes the window: logged + retried (max 10 in a
+        row). UI tag `2026-10-14c · 2 browser run modes`. Likely cause of his
+        report: the checkbox was ticked but Save Browser was not pressed (or
+        Start log should now tell). Waiting for his `[browser]` logs.
 
 00000000. **FINAL RECHECK of P8 (owner: "recheck, verify all, make it final").**
         Found a real blocker: match-chat sequences are realtime-event-only, so

@@ -1,10 +1,14 @@
-# Browser mode (Browser page → "Browser mode" checkbox)
+# Browser mode (Browser page → "Run mode" cards)
 
-**Off (default):** nothing changes. The browser opens only when a login is
+The Browser page has two separate run-mode cards; clicking one saves it at
+once and the Start log prints `Browser page run mode: 1. CLASSIC ...` or
+`... 2. BROWSER MODE ...`. Stored as `browser_mode` (bool) in the settings.
+
+**1. Classic (default):** nothing changes. The browser opens only when a login is
 missing/expired, `login_info.json` is saved, the window closes, and the bot
 chats with Go http + Go websocket as before.
 
-**On:** one real browser window per account stays open from Start until Stop
+**2. Browser mode:** one real browser window per account stays open from Start until Stop
 and every request goes through that page.
 
 | Step | What happens | Log prefix |
@@ -16,6 +20,11 @@ and every request goes through that page.
 | 401 | Not fatal: window navigated back to the app, bot waits for a new login, then resumes with the fresh session. | `[browser] Session expired. Log in again inside the browser window` |
 | Window closed by you | Detected by the error text (websocket/EOF/…) or, for any other error, after 3 consecutive failures by a 5 s probe of the window. That worker stops with one line; other accounts keep running. | `[browser] browser window closed or unreachable ... Stopping this worker` |
 | Stop | Session captured once more (fresh cookies/storage) → `login_info.json` saved → window closed. Next Start logs in automatically. | `[browser] Session saved to ...`, `Browser window closed.` |
+
+Robustness: in Browser mode a failed cycle (any non-fatal error) is logged as
+`[browser] Cycle failed (...) Window stays open; retrying` and retried after
+the normal poll wait; only 10 failures in a row stop the worker. Classic mode
+keeps its old behaviour (stop on error).
 
 Safety: a quick Stop → Start on the same account waits for the old window to
 finish closing (`Previous window of this profile is still closing; waiting`),

@@ -112,3 +112,6 @@ Format: date · commit(s) · what · why/notes. Older history condensed.
   realtime-only → browser_events.go poller added; hardening (mutex, pause,
   auto-return, liveness probe); session_test stub fixed; browser_pkg_check now
   also runs browser tests; ui_smoke.js added. Pushed + zip rebuilt.
+- Owner reported browser still closing after login → Browser page rebuilt as
+  two separate run-mode cards (Classic / Browser mode), auto-save on click,
+  mode printed at Start; browser-mode cycles retry instead of stopping.

@@ -72,6 +72,10 @@ type paths struct {
 
 var errLoginExpired = errors.New("login expired")
 
+// browserMaxCycleFailures: in Browser mode a failing cycle is retried (the
+// window stays open) up to this many times in a row before the worker stops.
+const browserMaxCycleFailures = 10
+
 func Run(ctx context.Context, cfg Config) error {
 	if cfg.Backend != "rod" && cfg.Backend != "chromedp" {
 		return fmt.Errorf("backend must be rod or chromedp, got %q", cfg.Backend)
@@ -134,6 +138,7 @@ func Run(ctx context.Context, cfg Config) error {
 	}()
 
 	logln(cfg, "Login ready. Starting bot loop.")
+	browserCycleFailures := 0
 	logf(cfg, "Cycle delay: %s to %s\n", cfg.PollMin, cfg.PollMax)
 	logf(cfg, "Action delay: %s to %s\n", cfg.ActionMin, cfg.ActionMax)
 
@@ -175,8 +180,23 @@ func Run(ctx context.Context, cfg Config) error {
 				logln(cfg, "Saved login expired or missing. Stopping worker.")
 				return err // This will cause the worker to stop.
 			}
+			if bsession != nil && ctx.Err() == nil {
+				// Browser mode: the window must stay open; a failed cycle is
+				// logged and retried instead of stopping the worker.
+				browserCycleFailures++
+				if browserCycleFailures >= browserMaxCycleFailures {
+					logf(cfg, "[browser] %d cycles failed in a row (last: %v). Stopping this worker.\n", browserCycleFailures, err)
+					return err
+				}
+				logf(cfg, "[browser] Cycle failed (%v). Window stays open; retrying after a short wait (%d/%d).\n", err, browserCycleFailures, browserMaxCycleFailures)
+				if werr := sleepRandom(ctx, rng, cfg, cfg.PollMin, cfg.PollMax, "Waiting before retry"); werr != nil {
+					return werr
+				}
+				continue
+			}
 			return err
 		}
+		browserCycleFailures = 0
 
 		if cfg.MatchWhenIdle && !workDone {
 			allowed, until, phase, reason := cfg.pace.gate()
