@@ -213,6 +213,10 @@ type EVAChatSession struct {
 	LastPool      string              `json:"last_pool,omitempty"`
 	// Transcript is the bounded line-by-line memory (user + bot lines).
 	Transcript []EVATranscriptLine `json:"transcript,omitempty"`
+	// PersonaAge / PersonaCountry are the bot's own identity for this user
+	// (randomised per conversation by the AI compose layer).
+	PersonaAge     int    `json:"persona_age,omitempty"`
+	PersonaCountry string `json:"persona_country,omitempty"`
 }
 
 // EVATranscriptLine is one remembered line of an EVAChat conversation.

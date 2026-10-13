@@ -14,6 +14,8 @@ export function LoadMessageFolder():Promise<Array<string>>;
 
 export function OpenEVAChatDataFolder():Promise<string>;
 
+export function TestEVAChatAI(arg1:model.MessageSettings):Promise<string>;
+
 export function RunFreshBrowsers(arg1:number):Promise<void>;
 
 export function SaveBrowserSettings(arg1:model.BrowserSettings):Promise<void>;

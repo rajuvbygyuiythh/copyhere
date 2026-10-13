@@ -53,6 +53,17 @@ increase in the same way. The share happens when the user asks for the handle,
 or says yes after the bot's `ask_snap.txt` question. If the Usernames list is
 empty the bot closes politely instead of sharing.
 
+## AI reply text (optional, hybrid)
+
+Tick **AI reply text (hybrid)** in the EVAChat panel, enter an OpenAI-compatible
+base URL (OpenAI / Groq / OpenRouter / Gemini / DeepSeek …), model and API key,
+press **Test AI**, Save, then Start. The TXT rules still run the funnel (age,
+snap ask → yes → share, cap); the AI only writes the reply text so it answers
+what the stranger actually said, with a random persona per user (f 20–25,
+random European country — edit `data/eva_chat/persona.txt` and
+`persona_countries.txt`). If the API fails the TXT line is sent. The key is
+stored only in the local `data/` settings file.
+
 ## Engine behavior (summary)
 
 - Stages: `NEW → WAIT_AGE_GENDER → WAIT_COUNTRY → MIDDLE → END`

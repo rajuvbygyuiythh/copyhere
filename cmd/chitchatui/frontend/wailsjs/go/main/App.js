@@ -28,6 +28,10 @@ export function OpenEVAChatDataFolder() {
   return window['go']['main']['App']['OpenEVAChatDataFolder']();
 }
 
+export function TestEVAChatAI(arg1) {
+  return window['go']['main']['App']['TestEVAChatAI'](arg1);
+}
+
 
 export function RunFreshBrowsers(arg1) {
   return window['go']['main']['App']['RunFreshBrowsers'](arg1);

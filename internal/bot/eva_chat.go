@@ -169,6 +169,8 @@ var evaSilentFallback = []string{"hii", "hey", "lol", "hmm", "oh nice"}
 type EVAChatConfig struct {
 	DataRoot string
 	Engine   *EVAChatEngine
+	// AI is the optional compose layer (eva_ai.go); nil = TXT lines only.
+	AI *EVAAIConfig
 }
 
 // EVAReplyResult describes one decision from the stateful EVAChat engine.
@@ -1155,6 +1157,7 @@ func evaChatSession(accountState *model.AccountState, userID string) model.EVACh
 func evaChatStart(cfg Config, accountState *model.AccountState, userID string, rng *rand.Rand) EVAReplyResult {
 	session := evaChatSession(accountState, userID)
 	result := cfg.EVAChat.Engine.Start(&session, rng)
+	result = evaChatCompose(cfg, &session, "", result, rng)
 	accountState.EVAChatSessions[userID] = session
 	return evaChatRender(cfg, accountState, userID, rng, result)
 }
@@ -1163,6 +1166,7 @@ func evaChatReply(cfg Config, accountState *model.AccountState, userID, incoming
 	session := evaChatSession(accountState, userID)
 	opts := EVAReplyOptions{HasUsernames: len(cfg.MessageUsernames) > 0}
 	result := cfg.EVAChat.Engine.ReplyWithOptions(incoming, &session, rng, opts)
+	result = evaChatCompose(cfg, &session, evaLastLine(incoming), result, rng)
 	accountState.EVAChatSessions[userID] = session
 	return evaChatRender(cfg, accountState, userID, rng, result)
 }

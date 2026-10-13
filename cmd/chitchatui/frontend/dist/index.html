@@ -185,6 +185,24 @@
               <button type="button" id="open-evachat-folder-btn" class="secondary-button">Open EVAChat Data Folder</button>
               <span id="evachat-status" style="margin-left: 10px; font-size: 0.9em; color: var(--muted);">TXT data is initialized when EVAChat Flow starts.</span>
             </div>
+            <div class="hint-text" style="margin-bottom: 10px;">
+              <label style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+                <input type="checkbox" id="evachat-ai-enabled">
+                <span><strong>AI reply text (hybrid)</strong> — the TXT rules still decide the flow (age, snap ask → yes → share, cap); the AI writes context-aware reply text with a random persona (f 20–25, Europe). Edit <code>data/eva_chat/persona.txt</code>.</span>
+              </label>
+              <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+                <label><span>API base URL (OpenAI-compatible)</span><input type="text" id="evachat-ai-base-url" placeholder="https://api.openai.com/v1"></label>
+                <label><span>Model</span><input type="text" id="evachat-ai-model" placeholder="gpt-4o-mini"></label>
+                <label style="grid-column: 1 / span 2;"><span>API key (stored only in local data/)</span><input type="password" id="evachat-ai-api-key" placeholder="sk-..."></label>
+              </div>
+              <div class="form-actions" style="margin-top:6px;">
+                <button type="button" id="evachat-ai-test-btn" class="secondary-button">Test AI</button>
+                <span id="evachat-ai-status" style="margin-left:10px; font-size:0.9em; color: var(--muted);"></span>
+              </div>
+              <div style="margin-top:6px; font-size:0.85em;">
+                Base URLs: OpenAI <code>https://api.openai.com/v1</code> · Groq <code>https://api.groq.com/openai/v1</code> · OpenRouter <code>https://openrouter.ai/api/v1</code> · Gemini <code>https://generativelanguage.googleapis.com/v1beta/openai</code> · DeepSeek <code>https://api.deepseek.com/v1</code>
+              </div>
+            </div>
             <div class="hint-text">
               EVAChat Flow is a stateful TXT-driven conversation engine. Edit <code>data/eva_chat/input/</code> for user-message triggers and <code>data/eva_chat/output/</code> for reply pools. The same file name connects a trigger category to its replies (see docs/CHAT_ENGINE_MAPPING.md). Fill the Usernames list: share_snap.txt uses %username%. Changes are loaded when the bot starts.
             </div>

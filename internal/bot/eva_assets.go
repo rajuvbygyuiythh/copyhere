@@ -13,7 +13,7 @@ import (
 // pools + countries). It is copied only when a file does not already exist in
 // data/eva_chat, so user edits are never overwritten.
 //
-//go:embed eva_assets/README.txt eva_assets/countries.txt eva_assets/input/*.txt eva_assets/input/middle_chat/*.txt eva_assets/output/*.txt eva_assets/output/middle_chat/*.txt
+//go:embed eva_assets/README.txt eva_assets/countries.txt eva_assets/persona.txt eva_assets/persona_countries.txt eva_assets/input/*.txt eva_assets/input/middle_chat/*.txt eva_assets/output/*.txt eva_assets/output/middle_chat/*.txt
 var evaAssets embed.FS
 
 // EnsureEVAChatData creates the editable EVAChat Flow data directory when it

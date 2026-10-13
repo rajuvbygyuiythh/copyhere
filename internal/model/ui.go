@@ -35,6 +35,12 @@ type MessageSettings struct {
 	UseLoadedSequences  bool     `json:"use_loaded_sequences"`
 	KeywordRulesContent string   `json:"keyword_rules_content,omitempty"`
 	KeywordFilePath     string   `json:"keyword_file_path,omitempty"`
+	// EVAChat Flow AI compose layer (OpenAI-compatible chat completions).
+	// The key is stored only in the local data/ settings file.
+	AIEnabled bool   `json:"ai_enabled,omitempty"`
+	AIBaseURL string `json:"ai_base_url,omitempty"`
+	AIAPIKey  string `json:"ai_api_key,omitempty"`
+	AIModel   string `json:"ai_model,omitempty"`
 }
 
 type ProxySettings struct {

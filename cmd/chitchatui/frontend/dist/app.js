@@ -111,6 +111,15 @@ function renderHomeStats(stats) {
   document.getElementById("stat-skipped-accounts").textContent = String(home.skipped_accounts || 0);
 }
 
+function evaAISettings() {
+  return {
+    ai_enabled: document.getElementById("evachat-ai-enabled").checked,
+    ai_base_url: document.getElementById("evachat-ai-base-url").value.trim(),
+    ai_model: document.getElementById("evachat-ai-model").value.trim(),
+    ai_api_key: document.getElementById("evachat-ai-api-key").value.trim(),
+  };
+}
+
 function setChatMode(mode) {
   const validMode = (mode === "folder" || mode === "eva_chat_flow") ? mode : "single";
   ["single", "folder", "evachat"].forEach((m) => {
@@ -137,6 +146,10 @@ function fillForms(snapshot) {
   const evaStatus = document.getElementById("evachat-status");
   if (evaStatus) evaStatus.textContent = currentMode === "eva_chat_flow" ? "EVAChat Flow will load the editable data/eva_chat TXT pack when the bot starts." : "TXT data is initialized when EVAChat Flow starts.";
   document.getElementById("message-usernames").value = snapshot.message.usernames || "";
+  document.getElementById("evachat-ai-enabled").checked = !!snapshot.message.ai_enabled;
+  document.getElementById("evachat-ai-base-url").value = snapshot.message.ai_base_url || "";
+  document.getElementById("evachat-ai-model").value = snapshot.message.ai_model || "";
+  document.getElementById("evachat-ai-api-key").value = snapshot.message.ai_api_key || "";
   document.getElementById("proxy-enabled").checked = !!snapshot.proxy.enabled;
   document.getElementById("proxy-entries").value = snapshot.proxy.entries || "";
   document.getElementById("poll-min").value = snapshot.general.poll_min_seconds;
@@ -271,6 +284,22 @@ function bindForms() {
     }
   });
 
+  document.getElementById("evachat-ai-test-btn").addEventListener("click", async () => {
+    const status = document.getElementById("evachat-ai-status");
+    status.textContent = "Testing AI API...";
+    try {
+      const result = await invoke("TestEVAChatAI", {
+        chat_mode: "eva_chat_flow",
+        sequence: document.getElementById("message-sequence").value,
+        usernames: document.getElementById("message-usernames").value,
+        ...evaAISettings(),
+      });
+      status.textContent = result || "AI OK";
+    } catch (error) {
+      status.textContent = "AI test failed: " + (error.message || String(error));
+    }
+  });
+
   document.getElementById("open-evachat-folder-btn").addEventListener("click", async () => {
     const summary = document.getElementById("home-summary");
     try {
@@ -289,6 +318,7 @@ function bindForms() {
       use_loaded_sequences: selectedMode === "folder",
       sequence: document.getElementById("message-sequence").value,
       usernames: document.getElementById("message-usernames").value,
+      ...evaAISettings(),
     });
     await refreshState();
     setChatMode(selectedMode);

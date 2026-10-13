@@ -49,12 +49,19 @@ Short version:
 * `%username%` / `{snap}` come from the dashboard **Message → Usernames**
   list (same mechanism as the other two modes; increments the
   `snap/tg/user` counter). `{country}` = the user's detected country.
+* Optional **AI compose layer** (`internal/bot/eva_ai.go`): an
+  OpenAI-compatible API rewrites the reply text (context-aware, random
+  persona f 20–25 / Europe from `persona.txt` + `persona_countries.txt`).
+  The TXT engine still decides the flow; share lines are never rewritten;
+  any failure falls back to the TXT line. Settings live in
+  `MessageSettings.AI*` (local data/ only — never commit a key).
 
 ## 3. Where the code lives (EVA-specific files only)
 
 | File | Role |
 |------|------|
 | `internal/bot/eva_chat.go` | the engine (loader, matcher, stage machine, pick) |
+| `internal/bot/eva_ai.go` + `eva_ai_test.go` | optional AI compose layer (OpenAI-compatible client, persona, output guard) |
 | `internal/bot/eva_assets.go` + `eva_assets/**` | embedded starter TXT pack, seeded to `data/eva_chat/` on first use |
 | `internal/bot/eva_chat_test.go` | engine tests (mirror of the reference `test_flow.py`) |
 | `internal/bot/logic.go` | 3 call sites (DM first msg, DM reply, realtime) + `executeMatchEVAChat` |

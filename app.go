@@ -497,6 +497,30 @@ func (a *App) OpenEVAChatDataFolder() (string, error) {
 	return summary, nil
 }
 
+// TestEVAChatAI sends one small request to the configured AI API (unsaved
+// dashboard values are used) and returns the model's answer.
+func (a *App) TestEVAChatAI(settings model.MessageSettings) (string, error) {
+	settings.AIEnabled = true
+	dataRoot, err := bot.EnsureEVAChatData(a.dataDir)
+	if err != nil {
+		return "", err
+	}
+	ai, err := bot.LoadEVAAI(dataRoot, settings)
+	if err != nil {
+		return "", err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+	defer cancel()
+	answer, err := ai.Test(ctx)
+	if err != nil {
+		a.log("error", fmt.Sprintf("EVAChat AI test failed: %v", err))
+		return "", err
+	}
+	summary := fmt.Sprintf("AI OK (%s / %s) -> %q", ai.BaseURL, ai.Model, answer)
+	a.log("info", summary)
+	return summary, nil
+}
+
 func (a *App) CleanProfiles() error {
 	a.mu.Lock()
 	running := a.running
@@ -697,8 +721,12 @@ func (a *App) buildBotConfigs() ([]bot.Config, error) {
 		if err != nil {
 			return nil, err
 		}
-		evaChatConfig = &bot.EVAChatConfig{DataRoot: dataRoot, Engine: engine}
-		a.log("info", fmt.Sprintf("EVAChat Flow ready: %d trigger categories and %d reply pools loaded from %s.", len(engine.InputCategories()), len(engine.OutputPools()), dataRoot))
+		ai, err := bot.LoadEVAAI(dataRoot, messageSettings)
+		if err != nil {
+			return nil, err
+		}
+		evaChatConfig = &bot.EVAChatConfig{DataRoot: dataRoot, Engine: engine, AI: ai}
+		a.log("info", fmt.Sprintf("EVAChat Flow ready: %d trigger categories and %d reply pools loaded from %s. %s", len(engine.InputCategories()), len(engine.OutputPools()), dataRoot, ai.Describe()))
 	}
 
 	profiles, err := workerplan.DiscoverProfileWorkers(a.dataDir, browserSettings.Profile)

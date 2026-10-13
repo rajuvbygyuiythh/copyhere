@@ -114,6 +114,10 @@ export namespace model {
 	    use_loaded_sequences: boolean;
 	    keyword_rules_content?: string;
 	    keyword_file_path?: string;
+	    ai_enabled?: boolean;
+	    ai_base_url?: string;
+	    ai_api_key?: string;
+	    ai_model?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new MessageSettings(source);
@@ -130,6 +134,10 @@ export namespace model {
 	        this.use_loaded_sequences = source["use_loaded_sequences"];
 	        this.keyword_rules_content = source["keyword_rules_content"];
 	        this.keyword_file_path = source["keyword_file_path"];
+	        this.ai_enabled = source["ai_enabled"];
+	        this.ai_base_url = source["ai_base_url"];
+	        this.ai_api_key = source["ai_api_key"];
+	        this.ai_model = source["ai_model"];
 	    }
 	}
 	export class ProxySettings {

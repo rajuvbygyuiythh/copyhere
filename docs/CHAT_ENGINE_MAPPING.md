@@ -166,3 +166,33 @@ yes-words without ask never share, refusal → nudge → closer, repeat loop wit
 different lines, underage block, multi-line, reply cap, age-ask progression,
 no-repeat pools, countries + placeholders, transcript memory, proactive ask,
 no-usernames closer, adapter username rendering, custom category auto-join.
+
+## 8. AI compose layer (hybrid) — `internal/bot/eva_ai.go`
+
+Optional. Dashboard → Message → EVAChat Flow → **AI reply text (hybrid)**:
+API base URL (any OpenAI-compatible `/chat/completions`), model, key
+(stored only in local `data/` settings, never in git). **Test AI** button
+sends one small request.
+
+Division of labour:
+
+| Decided by the TXT engine (unchanged) | Written by the AI |
+|---|---|
+| stage, category, pool, misses | the reply TEXT for every composable pool |
+| ask_snap → yes → share chain, retry_nudge, closer | — (share_snap/snapchat lines are NEVER rewritten; they carry `%username%`) |
+| age gate, reply cap, no-repeat pools | — |
+| 2nd line of the horny answer (`horny.txt`) | 1st line (`horny_answer.txt`) |
+
+Per call the model receives: system prompt = `data/eva_chat/persona.txt`
+(with `{age}` / `{country}` from the per-user persona: random age 20–25 and a
+random line of `persona_countries.txt`, fixed for that user) + hard rules; user
+prompt = last 24 transcript lines, known facts (stranger age/gender/country),
+the stranger's last message, the **intent** of the chosen pool (table in
+`evaAIIntents`) and up to 4 style examples from that pool.
+
+Output guard (`evaAISanitize`): first line only, quotes/prefixes stripped,
+lowercased, ≤160 chars, rejected if it contains `@`, links, telegram/whatsapp,
+"as an ai"-style text, any configured username, or repeats an earlier bot
+line. Any rejection or API/network error → the TXT line is sent instead and
+`[evachat-ai] fallback ...` is logged. The transcript always stores the text
+that was actually sent.

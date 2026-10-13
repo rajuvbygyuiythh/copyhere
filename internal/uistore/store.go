@@ -95,6 +95,10 @@ func (s *Store) LoadMessageSettings() (model.MessageSettings, error) {
 	ret.UseLoadedSequences = (mode == model.ChatModeFolder)
 	ret.KeywordRulesContent = settings.KeywordRulesContent
 	ret.KeywordFilePath = settings.KeywordFilePath
+	ret.AIEnabled = settings.AIEnabled
+	ret.AIBaseURL = settings.AIBaseURL
+	ret.AIAPIKey = settings.AIAPIKey
+	ret.AIModel = settings.AIModel
 	return ret, nil
 }
 
@@ -113,6 +117,10 @@ func (s *Store) SaveMessageSettings(settings model.MessageSettings) error {
 	ret.UseLoadedSequences = (mode == model.ChatModeFolder)
 	ret.KeywordRulesContent = settings.KeywordRulesContent
 	ret.KeywordFilePath = settings.KeywordFilePath
+	ret.AIEnabled = settings.AIEnabled
+	ret.AIBaseURL = settings.AIBaseURL
+	ret.AIAPIKey = settings.AIAPIKey
+	ret.AIModel = settings.AIModel
 	return s.saveJSON(keyMessage, ret)
 }
 
