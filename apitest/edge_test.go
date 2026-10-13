@@ -49,3 +49,15 @@ func TestOnlyQuestion(t *testing.T) {
 		t.Error("asl answer flagged")
 	}
 }
+
+func TestGreetingNotCold(t *testing.T) {
+	d := newDirector(newRng())
+	d.observe("hi")
+	if d.userLowEffort || d.coldStreak != 0 {
+		t.Errorf("greeting counted as low effort: cold=%d", d.coldStreak)
+	}
+	d.observe("nothing")
+	if d.coldStreak != 1 {
+		t.Errorf("cold streak after 'nothing' = %d, want 1", d.coldStreak)
+	}
+}

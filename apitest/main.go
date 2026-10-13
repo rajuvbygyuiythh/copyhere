@@ -128,6 +128,7 @@ var (
 	trailingDotRe = regexp.MustCompile(`[.,]+\s*([^\w\s]*)\s*$`)
 	foreignRe     = regexp.MustCompile(`(?i)\b(hola|que|qué|como|cómo|estas|estás|guapa|bonita|bonjour|salut|ça va|ciao|bella|hallo|wie geht|kya|kaise|kaisi|haan|nahi|tum|aap|kemon|acho|tumi|apni|bhai|kaha|kahan|koi|merhaba|nasılsın|privet|kak dela|oi|tudo bem|voce|você|olá|habibi|kaif|halik|mabuhay|kumusta|apa kabar|selamat|xin chào|annyeong|konnichiwa|ni hao)\b`)
 	aiPhraseRe    = regexp.MustCompile(`(?i)\b(absolutely|sounds like (you|u)|feel free|that'?s (great|awesome|wonderful|fantastic|amazing)|i'?d love to|tell me more|i'?m here to|how can i help|great question|i appreciate|certainly|definitely|wonderful|fantastic|delightful|i understand|let'?s chat|chat with you|get to know (you|u)|what about yourself|interesting!|as an ai|language model|i'?m (just )?an ai|virtual|assistant|i cannot|i can'?t help with|inappropriate|respectful|boundaries|comfortable with|let'?s keep (it|this)|i'?m not able to)\b`)
+	greetRe       = regexp.MustCompile(`(?i)^(hi+|hey+|heyy+|hello+|helo|sup|wassup|whats up|what's up|yo+|hii+|hiya|heya|good (morning|evening|afternoon)|morning|evening)\W*$`)
 	addedRe       = regexp.MustCompile(`(?i)\b(added|sent (u|you)? ?(a )?(req|request)|just added|adding|requested|follow(ed)?)\b`)
 )
 
@@ -291,7 +292,7 @@ func (d *director) observe(text string) {
 		d.userQuestion = true
 	}
 	_, _, hasAsl := genderAge(low)
-	d.userLowEffort = !hasAsl && !d.userAskedSnap && (words <= 2 && lowEffortRe.MatchString(low) || len([]rune(low)) <= 3)
+	d.userLowEffort = !hasAsl && !d.userAskedSnap && !greetRe.MatchString(low) && (words <= 2 && lowEffortRe.MatchString(low) || len([]rune(low)) <= 3)
 	d.userShared = !d.userQuestion && !d.userLowEffort && words >= 4
 	d.userRefused = d.askedSnap && !d.shared && refuseRe.MatchString(low) && !yesRe.MatchString(low)
 	d.userHesitant = d.askedSnap && !d.shared && !d.userRefused && hesitantRe.MatchString(low) && !yesRe.MatchString(low)
@@ -450,7 +451,7 @@ func (d *director) mood(turn int) string {
 		m = "fun/joke"
 	case d.userLonely:
 		m = "lonely"
-	case d.coldStreak >= 2:
+	case d.coldStreak >= 2 && turn >= 4:
 		if d.lastMood == "lonely" {
 			m = "teasing"
 		} else {
@@ -640,8 +641,8 @@ func (d *director) plan(cfg config, turn int, userText string) plan {
 	case turn == 2 && d.userAge == 0:
 		p.Why = "asl"
 		d.toldAsl = true
-		p.Instruction = base + ". they didn't say their age/gender yet: give yours the short way ('f <age>') and ask theirs, like 'f 21, u?'."
-	case d.coldStreak >= 2:
+		p.Instruction = base + ". they didn't say their age/gender yet: give yours the short way and ask theirs in the SAME line, exactly like 'f <your age>, u?' (optionally a 2-3 word reaction before it). ONE line only."
+	case d.coldStreak >= 2 && turn >= 4:
 		p.Why = "cold streak -> hook"
 		hooks := []string{
 			"they are giving one-word answers: tease them for being so quiet (like 'ur a man of many words huh'), then ask something easy.",
@@ -682,7 +683,7 @@ func (d *director) plan(cfg config, turn int, userText string) plan {
 	switch {
 	case d.userHorny || d.userFlirty:
 		wantDouble = true // reaction line + hook line
-	case d.coldStreak >= 2:
+	case d.coldStreak >= 2 && turn >= 4:
 		wantDouble = true // tease line + easy question = restart the chat
 	case d.userShared && len([]rune(userText)) > 40:
 		wantDouble = true // they invested, reward with more
@@ -691,7 +692,8 @@ func (d *director) plan(cfg config, turn int, userText string) plan {
 	case turn%3 == 0:
 		wantDouble = true // rhythm
 	}
-	if wantDouble && d.lastDouble != turn-1 && turn > 1 && !d.userPicAsk && !d.userAslAsk && !d.userGaveAsl {
+	doubleOK := map[string]bool{"horny": true, "flirty": true, "cold streak -> hook": true, "they opened up": true, "keep going": true, "lonely match": true}
+	if wantDouble && doubleOK[p.Why] && d.lastDouble != turn-1 && turn > 2 && !d.userPicAsk && !d.userAslAsk && !d.userGaveAsl {
 		p.Double = true
 		d.lastDouble = turn
 		p.Instruction += " write TWO lines: first the reaction/answer, second the question."
