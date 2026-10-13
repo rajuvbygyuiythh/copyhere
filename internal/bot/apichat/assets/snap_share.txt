@@ -1,0 +1,42 @@
+# snap_share.txt - how the bot hands out the snap username on the share turn.
+#
+# One style per line. %username% is replaced with SNAP_USERNAME from the
+# config (required - lines without it are skipped). Use " | " to split one
+# style into two or more separate messages. Lines starting with # are ignored.
+#
+# Only THIS line comes from here; the lead-in before it ("this app is dead,
+# im moving to snap") is written by the AI. Styles are used like a shuffled
+# deck: every style once before any repeats, never the same twice in a row.
+# Mix the wording so the platform never sees one fixed pattern.
+
+# --- plain, casual ---
+ok fine, add me on snap 👻 %username%
+my snap is %username%, add me rn
+ok u got me lol, snap %username%
+add me, im %username% on there
+its %username% .. find me there
+im %username% on the ghost app lol
+%username% 👻 come say hi
+u can find me as %username%
+snap me, %username%
+%username% is my snap, dont be weird about it lol
+go add %username% before i change my mind 😏
+add %username% and send a snap so i know its u
+im barely on here, %username% on snap is where im at
+%username% .. thats me on snap, add me
+snap %username% and we can keep talking there
+k add me there, %username%
+
+# --- two messages (the handle gets its own line) ---
+ok add me on snap | %username%
+im on there as | %username% 👻
+fine lol | snap: %username%
+my ghost app is | %username% .. go add me
+ok ok | %username% on snap, hurry up lol
+u earned it 😏 | %username%
+
+# --- spelled out / softer ---
+add me on snapchat, %username%
+im way more active on snapchat, %username%
+snapchat is %username% if u want to keep talking
+%username% on snapchat .. ill reply there i promise

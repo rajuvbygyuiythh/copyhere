@@ -1,0 +1,583 @@
+const state = {
+  snapshot: null,
+  currentTab: "home",
+};
+
+function backend() {
+  return window.go && window.go.main && window.go.main.App;
+}
+
+async function invoke(method, ...args) {
+  const api = backend();
+  if (!api || typeof api[method] !== "function") {
+    throw new Error(`Wails binding not ready: ${method}`);
+  }
+  return api[method](...args);
+}
+
+function runtimeEvents() {
+  return window.runtime || {};
+}
+
+function setRunning(running) {
+  const pill = document.getElementById("running-pill");
+  pill.textContent = running ? "Running" : "Stopped";
+  pill.className = `pill ${running ? "running" : "stopped"}`;
+  const cleanButton = document.getElementById("clean-profiles");
+  if (cleanButton) {
+    cleanButton.disabled = !!running;
+    cleanButton.title = running ? "Stop the bot before cleaning profile data." : "";
+  }
+}
+
+function renderLogs(logs) {
+  const logList = document.getElementById("log-list");
+  logList.innerHTML = "";
+  const visibleLogs = (logs || []).filter(isVisibleHomeLog);
+
+  if (!visibleLogs.length) {
+    const empty = document.createElement("div");
+    empty.className = "log-entry";
+    empty.innerHTML = `<div class="log-time">-</div><div class="log-level activity">ACTIVITY</div><div class="log-message">No chat activity yet.</div>`;
+    logList.appendChild(empty);
+    return;
+  }
+
+  visibleLogs.forEach((entry) => appendLog(entry, false));
+  logList.scrollTop = logList.scrollHeight;
+}
+
+function appendLog(entry, scroll = true) {
+  if (!isVisibleHomeLog(entry)) {
+    return;
+  }
+
+  const logList = document.getElementById("log-list");
+  const row = document.createElement("div");
+  row.className = "log-entry";
+
+  const level = String(entry.level || "info").toLowerCase();
+  row.innerHTML = `
+    <div class="log-time">${escapeHtml(entry.time || "")}</div>
+    <div class="log-level ${level}">${escapeHtml(level)}</div>
+    <div class="log-message">${escapeHtml(entry.message || "")}</div>
+  `;
+
+  logList.insertBefore(row, logList.firstChild);
+  if (scroll) {
+    logList.scrollTop = 0;
+  }
+}
+
+function isVisibleHomeLog(entry) {
+  const level = String(entry && entry.level ? entry.level : "info").toLowerCase();
+  return level === "activity";
+}
+
+function renderBrowserOptions(options, selected) {
+  const root = document.getElementById("browser-options");
+  root.innerHTML = "";
+
+  options.forEach((option) => {
+    const wrapper = document.createElement("label");
+    wrapper.className = `browser-choice ${option.key === selected ? "active" : ""}`;
+    wrapper.innerHTML = `
+      <div class="browser-choice-title">
+        <input type="radio" name="browser-backend" value="${escapeHtml(option.key)}" ${option.key === selected ? "checked" : ""}>
+        <span>${escapeHtml(option.label)}</span>
+      </div>
+      <div class="browser-choice-description">${escapeHtml(option.description)}</div>
+    `;
+    root.appendChild(wrapper);
+  });
+
+  root.querySelectorAll('input[name="browser-backend"]').forEach((input) => {
+    input.addEventListener("change", () => {
+      root.querySelectorAll(".browser-choice").forEach((choice) => choice.classList.remove("active"));
+      input.closest(".browser-choice").classList.add("active");
+    });
+  });
+}
+
+function renderHomeStats(stats) {
+  const home = stats || {};
+  document.getElementById("stat-bot-accounts").textContent = String(home.bot_accounts || 0);
+  document.getElementById("stat-running-accounts").textContent = String(home.running_accounts || 0);
+  document.getElementById("stat-user-send").textContent = String(home.user_send_count || 0);
+  document.getElementById("stat-traffic-users").textContent = String(home.traffic_users || 0);
+  document.getElementById("stat-snap-tg-user").textContent = String(home.snap_tg_sent_count || 0);
+  document.getElementById("stat-messages-sent").textContent = String(home.messages_sent || 0);
+  document.getElementById("stat-dead-accounts").textContent = String(home.dead_accounts || 0);
+  document.getElementById("stat-skipped-accounts").textContent = String(home.skipped_accounts || 0);
+  document.getElementById("stat-user-first").textContent = String(home.user_first_count || 0);
+  document.getElementById("stat-bot-first").textContent = String(home.bot_first_count || 0);
+  document.getElementById("stat-resting-accounts").textContent = String(home.resting_accounts || 0);
+}
+
+const MODE_IDS = { single: "single", folder: "folder", evachat: "eva_chat_flow", apichat: "api_chat" };
+
+function modeFromId(m) {
+  return MODE_IDS[m] || m;
+}
+
+
+// API settings live only in the API Chat panel (EVAChat Flow is pure TXT).
+function evaAISettings() {
+  return {
+    ai_enabled: false,
+    ai_base_url: document.getElementById("apichat-base-url").value.trim(),
+    ai_model: document.getElementById("apichat-model").value.trim(),
+    ai_api_key: document.getElementById("apichat-api-key").value.trim(),
+  };
+}
+
+function apiChatTestSettings() {
+  return {
+    chat_mode: "api_chat",
+    sequence: document.getElementById("message-sequence").value,
+    usernames: document.getElementById("message-usernames").value,
+    ai_enabled: false,
+    ai_base_url: document.getElementById("apichat-base-url").value.trim(),
+    ai_model: document.getElementById("apichat-model").value.trim(),
+    ai_api_key: document.getElementById("apichat-api-key").value.trim(),
+  };
+}
+
+function setChatMode(mode) {
+  const validMode = (mode === "folder" || mode === "eva_chat_flow" || mode === "api_chat") ? mode : "single";
+  ["single", "folder", "evachat", "apichat"].forEach((m) => {
+    const radio = document.getElementById(`chat-mode-${m}`);
+    const label = document.getElementById(`mode-option-${m}`);
+    const section = document.getElementById(`section-${m}-mode`);
+    if (radio) radio.checked = (modeFromId(m) === validMode);
+    if (label) label.classList.toggle("active", modeFromId(m) === validMode);
+    if (section) section.style.display = (modeFromId(m) === validMode) ? "block" : "none";
+  });
+  const useLoaded = document.getElementById("use-loaded-sequences");
+  if (useLoaded) useLoaded.checked = (validMode === "folder");
+}
+
+function fillForms(snapshot) {
+  document.getElementById("browser-profile").value = snapshot.browser.profile || "default";
+  document.getElementById("browser-headless").checked = !!snapshot.browser.headless;
+  setBrowserRunMode(!!snapshot.browser.browser_mode);
+  const tzInput = document.getElementById("browser-timezone");
+  if (tzInput) tzInput.value = snapshot.browser.timezone || "";
+  
+  const currentMode = snapshot.message.chat_mode || ((snapshot.message.use_loaded_sequences && snapshot.message.loaded_sequences && snapshot.message.loaded_sequences.length > 0) ? "folder" : "single");
+  setChatMode(currentMode);
+
+  document.getElementById("loaded-sequences-status").textContent = snapshot.message.loaded_sequences ? `${snapshot.message.loaded_sequences.length} sequences loaded` : "0 sequences loaded";
+  document.getElementById("message-sequence").value = snapshot.message.sequence || "";
+  const evaStatus = document.getElementById("evachat-status");
+  if (evaStatus) evaStatus.textContent = currentMode === "eva_chat_flow" ? "EVAChat Flow will load the editable data/eva_chat TXT pack when the bot starts." : "TXT data is initialized when EVAChat Flow starts.";
+  document.getElementById("message-usernames").value = snapshot.message.usernames || "";
+  document.getElementById("apichat-base-url").value = snapshot.message.ai_base_url || "";
+  document.getElementById("apichat-model").value = snapshot.message.ai_model || "";
+  document.getElementById("apichat-api-key").value = snapshot.message.ai_api_key || "";
+  document.getElementById("proxy-enabled").checked = !!snapshot.proxy.enabled;
+  document.getElementById("proxy-entries").value = snapshot.proxy.entries || "";
+  document.getElementById("poll-min").value = snapshot.general.poll_min_seconds;
+  document.getElementById("poll-max").value = snapshot.general.poll_max_seconds;
+  document.getElementById("action-min").value = snapshot.general.action_min_seconds;
+  document.getElementById("action-max").value = snapshot.general.action_max_seconds;
+  document.getElementById("match-reply-timeout-min").value = snapshot.general.match_reply_timeout_min_seconds || 60;
+  document.getElementById("match-reply-timeout-max").value = snapshot.general.match_reply_timeout_max_seconds || 60;
+  document.getElementById("match-close-wait-min").value = snapshot.general.match_close_wait_min_seconds || 0;
+  document.getElementById("match-close-wait-max").value = snapshot.general.match_close_wait_max_seconds || 0;
+  document.getElementById("reply-delay-min").value = snapshot.general.reply_delay_min_seconds || 0;
+  document.getElementById("reply-delay-max").value = snapshot.general.reply_delay_max_seconds || 0;
+  const g = snapshot.general;
+  document.getElementById("pacing-enabled").checked = !g.pacing_disabled;
+  document.getElementById("bot-first-percent").value = g.bot_first_percent ?? 30;
+  document.getElementById("chats-per-hour-max").value = g.chats_per_hour_max || 30;
+  document.getElementById("opener-wait-min").value = g.opener_wait_min_seconds || 45;
+  document.getElementById("opener-wait-max").value = g.opener_wait_max_seconds || 120;
+  document.getElementById("bot-open-delay-min").value = g.bot_open_delay_min_seconds || 8;
+  document.getElementById("bot-open-delay-max").value = g.bot_open_delay_max_seconds || 25;
+  document.getElementById("active-min").value = g.active_min_minutes || 25;
+  document.getElementById("active-max").value = g.active_max_minutes || 40;
+  document.getElementById("rest-min").value = g.rest_min_minutes || 10;
+  document.getElementById("rest-max").value = g.rest_max_minutes || 25;
+  document.getElementById("limit-cooldown").value = g.limit_cooldown_minutes || 20;
+  document.getElementById("live-wall-enabled").checked = !snapshot.general.live_wall_disabled;
+  document.getElementById("live-wall-port").value = snapshot.general.live_wall_port || "";
+  const dbg = document.getElementById("debug-api-enabled");
+  if (dbg) dbg.checked = !!snapshot.general.debug_api;
+  renderBrowserOptions(snapshot.browser_options || [], snapshot.browser.backend || "rod");
+  renderHomeStats(snapshot.home);
+  setRunning(!!snapshot.running);
+  if (snapshot.license_invalid) {
+    const overlay = document.getElementById('license-overlay');
+    overlay.style.display = 'flex';
+    document.getElementById('license-message').textContent = snapshot.license_reason || "Your license is invalid or expired.";
+    document.getElementById('license-key-input').value = snapshot.license_key || "UNKNOWN";
+    return;
+  }
+
+  document.querySelector('.shell').classList.add('visible');
+
+  const messageLineCount = String(snapshot.message.sequence || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean).length;
+  document.getElementById("home-summary").textContent =
+    `Showing bot logs | Backend: ${snapshot.browser.backend} | Profiles auto-start | Message steps: ${messageLineCount}`;
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function setBrowserRunMode(live) {
+  const liveRadio = document.getElementById("browser-mode");
+  const classicRadio = document.getElementById("browser-mode-classic");
+  if (liveRadio) liveRadio.checked = !!live;
+  if (classicRadio) classicRadio.checked = !live;
+  const liveCard = document.getElementById("browser-mode-option-live");
+  const classicCard = document.getElementById("browser-mode-option-classic");
+  if (liveCard) liveCard.classList.toggle("active", !!live);
+  if (classicCard) classicCard.classList.toggle("active", !live);
+  const status = document.getElementById("browser-mode-status");
+  if (status) status.textContent = live ? "current: 2. Browser mode (live window)" : "current: 1. Classic (closes after login)";
+}
+
+function browserRunModeIsLive() {
+  const liveRadio = document.getElementById("browser-mode");
+  return !!(liveRadio && liveRadio.checked);
+}
+
+function browserSettingsPayload() {
+  return {
+    profile: document.getElementById("browser-profile").value.trim() || "default",
+    backend: selectedBackend(),
+    headless: document.getElementById("browser-headless").checked,
+    browser_mode: browserRunModeIsLive(),
+    timezone: ((document.getElementById("browser-timezone") || {}).value || "").trim(),
+  };
+}
+
+function selectedBackend() {
+  const selected = document.querySelector('input[name="browser-backend"]:checked');
+  return selected ? selected.value : "rod";
+}
+
+async function refreshState() {
+  const snapshot = await invoke("GetInitialState");
+  state.snapshot = snapshot;
+  fillForms(snapshot);
+  renderLogs(snapshot.logs || []);
+}
+
+async function autoRefreshStats() {
+  try {
+    const snapshot = await invoke("GetInitialState");
+    renderHomeStats(snapshot.home);
+  } catch (err) {
+    // ignore
+  }
+}
+
+function activateTab(tabName) {
+  state.currentTab = tabName;
+
+  document.querySelectorAll(".nav-button").forEach((button) => {
+    button.classList.toggle("active", button.dataset.tab === tabName);
+  });
+  document.querySelectorAll(".tab-panel").forEach((panel) => {
+    panel.classList.toggle("active", panel.dataset.panel === tabName);
+  });
+}
+
+function bindTabs() {
+  document.querySelectorAll(".nav-button").forEach((button) => {
+    button.addEventListener("click", () => activateTab(button.dataset.tab));
+  });
+}
+
+function bindForms() {
+  document.getElementById("browser-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await invoke("SaveBrowserSettings", browserSettingsPayload());
+    await refreshState();
+  });
+
+  document.querySelectorAll('input[name="browser-run-mode"]').forEach((radio) => {
+    radio.addEventListener("change", async (e) => {
+      setBrowserRunMode(e.target.value === "live");
+      await invoke("SaveBrowserSettings", browserSettingsPayload());
+      await refreshState();
+    });
+  });
+
+  document.querySelectorAll('input[name="chat-mode"]').forEach((radio) => {
+    radio.addEventListener("change", (e) => {
+      setChatMode(e.target.value);
+    });
+  });
+
+  ["single", "folder", "evachat", "apichat"].forEach((mode) => {
+    const label = document.getElementById(`mode-option-${mode}`);
+    if (label) {
+      label.addEventListener("click", () => {
+        setChatMode(modeFromId(mode));
+      });
+    }
+  });
+
+  document.getElementById("apichat-test-btn").addEventListener("click", async () => {
+    const status = document.getElementById("apichat-status");
+    status.textContent = "Testing API...";
+    try {
+      const result = await invoke("TestAPIChat", apiChatTestSettings());
+      status.textContent = result || "API OK";
+    } catch (error) {
+      status.textContent = "API test failed: " + (error.message || String(error));
+    }
+  });
+
+  document.getElementById("open-apichat-folder-btn").addEventListener("click", async () => {
+    const status = document.getElementById("apichat-status");
+    try {
+      const result = await invoke("OpenAPIChatDataFolder");
+      if (result) status.textContent = result;
+    } catch (error) {
+      status.textContent = error.message || String(error);
+    }
+  });
+
+  document.getElementById("load-folder-btn").addEventListener("click", async () => {
+    const summary = document.getElementById("home-summary");
+    try {
+      const sequences = await invoke("LoadMessageFolder");
+      if (sequences && sequences.length > 0) {
+        summary.textContent = `Loaded ${sequences.length} message sequences from folder.`;
+        setChatMode("folder");
+        await refreshState();
+        setChatMode("folder");
+      }
+    } catch (error) {
+      summary.textContent = error.message || String(error);
+    }
+  });
+
+  document.getElementById("clean-loaded-btn").addEventListener("click", async () => {
+    const summary = document.getElementById("home-summary");
+    try {
+      await invoke("ClearLoadedMessages");
+      summary.textContent = "Loaded sequences cleared from DB.";
+      setChatMode("single");
+      await refreshState();
+      setChatMode("single");
+    } catch (error) {
+      summary.textContent = error.message || String(error);
+    }
+  });
+
+  document.getElementById("open-evachat-folder-btn").addEventListener("click", async () => {
+    const summary = document.getElementById("home-summary");
+    try {
+      const result = await invoke("OpenEVAChatDataFolder");
+      if (result) summary.textContent = result;
+    } catch (error) {
+      if (summary) summary.textContent = error.message || String(error);
+    }
+  });
+
+  document.getElementById("message-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const selectedMode = document.querySelector('input[name="chat-mode"]:checked')?.value || "single";
+    await invoke("SaveMessageSettings", {
+      chat_mode: selectedMode,
+      use_loaded_sequences: selectedMode === "folder",
+      sequence: document.getElementById("message-sequence").value,
+      usernames: document.getElementById("message-usernames").value,
+      ...evaAISettings(),
+    });
+    await refreshState();
+    setChatMode(selectedMode);
+  });
+
+  document.getElementById("proxy-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const summary = document.getElementById("home-summary");
+    try {
+      await invoke("SaveProxySettings", {
+        enabled: document.getElementById("proxy-enabled").checked,
+        entries: document.getElementById("proxy-entries").value,
+      });
+      await refreshState();
+    } catch (error) {
+      summary.textContent = error.message || String(error);
+    }
+  });
+
+  document.getElementById("general-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await invoke("SaveGeneralSettings", {
+      poll_min_seconds: Number(document.getElementById("poll-min").value),
+      poll_max_seconds: Number(document.getElementById("poll-max").value),
+      action_min_seconds: Number(document.getElementById("action-min").value),
+      action_max_seconds: Number(document.getElementById("action-max").value),
+      match_reply_timeout_min_seconds: Number(document.getElementById("match-reply-timeout-min").value),
+      match_reply_timeout_max_seconds: Number(document.getElementById("match-reply-timeout-max").value),
+      match_close_wait_min_seconds: Number(document.getElementById("match-close-wait-min").value),
+      match_close_wait_max_seconds: Number(document.getElementById("match-close-wait-max").value),
+      reply_delay_min_seconds: Number(document.getElementById("reply-delay-min").value),
+      reply_delay_max_seconds: Number(document.getElementById("reply-delay-max").value),
+      pacing_disabled: !document.getElementById("pacing-enabled").checked,
+      bot_first_percent: Number(document.getElementById("bot-first-percent").value),
+      chats_per_hour_max: Number(document.getElementById("chats-per-hour-max").value),
+      opener_wait_min_seconds: Number(document.getElementById("opener-wait-min").value),
+      opener_wait_max_seconds: Number(document.getElementById("opener-wait-max").value),
+      bot_open_delay_min_seconds: Number(document.getElementById("bot-open-delay-min").value),
+      bot_open_delay_max_seconds: Number(document.getElementById("bot-open-delay-max").value),
+      active_min_minutes: Number(document.getElementById("active-min").value),
+      active_max_minutes: Number(document.getElementById("active-max").value),
+      rest_min_minutes: Number(document.getElementById("rest-min").value),
+      rest_max_minutes: Number(document.getElementById("rest-max").value),
+      limit_cooldown_minutes: Number(document.getElementById("limit-cooldown").value),
+      live_wall_disabled: !document.getElementById("live-wall-enabled").checked,
+      live_wall_port: Number(document.getElementById("live-wall-port").value) || 0,
+      debug_api: !!((document.getElementById("debug-api-enabled") || {}).checked),
+    });
+    await refreshState();
+  });
+
+  document.getElementById("open-live-wall-folder").addEventListener("click", async () => {
+    try {
+      await invoke("OpenLiveWallFolder");
+    } catch (error) {
+      document.getElementById("home-summary").textContent = error.message || String(error);
+    }
+  });
+}
+
+function bindActions() {
+  document.getElementById("open-live-wall").addEventListener("click", async () => {
+    const summary = document.getElementById("home-summary");
+    try {
+      const url = await invoke("OpenLiveWall");
+      summary.textContent = `Live Wall opened: ${url} (press F in the browser for fullscreen)`;
+    } catch (error) {
+      summary.textContent = error.message || String(error);
+    }
+  });
+
+  document.getElementById("start-bot").addEventListener("click", async () => {
+    await invoke("StartBot");
+    await refreshState();
+  });
+
+  document.getElementById("stop-bot").addEventListener("click", async () => {
+    await invoke("StopBot");
+    await refreshState();
+  });
+
+  document.getElementById("clean-profiles").addEventListener("click", async () => {
+    const summary = document.getElementById("home-summary");
+    try {
+      await invoke("CleanProfiles");
+      await refreshState();
+      summary.textContent = "Profile data cleaned. Login profiles and worker ownership data were removed.";
+    } catch (error) {
+      summary.textContent = error.message || String(error);
+    }
+  });
+
+  document.getElementById("refresh-state").addEventListener("click", async () => {
+    await refreshState();
+  });
+
+  document.getElementById("clear-logs").addEventListener("click", async () => {
+    await invoke("ClearLogs");
+    await refreshState();
+  });
+
+  document.getElementById("run-fresh-browsers").addEventListener("click", async () => {
+    const count = Number(document.getElementById("fresh-browser-count").value);
+    const summary = document.getElementById("home-summary");
+    if (!Number.isInteger(count) || count < 1 || count > 5) {
+      summary.textContent = "Fresh browser count must be between 1 and 5.";
+      return;
+    }
+
+    try {
+      summary.textContent = `Launching ${count} fresh browser(s)...`;
+      await invoke("RunFreshBrowsers", count);
+    } catch (error) {
+      summary.textContent = error.message || String(error);
+    }
+  });
+
+}
+
+function bindEvents() {
+  const runtime = runtimeEvents();
+
+  if (typeof runtime.EventsOn === "function") {
+    runtime.EventsOn("ui:log", (entry) => {
+      appendLog(entry);
+    });
+    runtime.EventsOn("ui:running", (running) => {
+      setRunning(!!running);
+    });
+    runtime.EventsOn("ui:logs_cleared", () => {
+      renderLogs([]);
+    });
+    runtime.EventsOn("ui:license_invalid", (data) => {
+      document.querySelector('.shell').classList.remove('visible');
+      const overlay = document.getElementById('license-overlay');
+      overlay.style.display = 'flex';
+      document.getElementById('license-message').textContent = data.reason || "Your license became invalid or expired.";
+      document.getElementById('license-key-input').value = data.key || "UNKNOWN";
+    });
+  }
+
+  const copyBtn = document.getElementById('copy-license-btn');
+  if (copyBtn) {
+    copyBtn.addEventListener('click', () => {
+      const input = document.getElementById('license-key-input');
+      input.select();
+      input.setSelectionRange(0, 99999);
+      navigator.clipboard.writeText(input.value).then(() => {
+        const originalText = copyBtn.textContent;
+        copyBtn.textContent = 'Copied!';
+        setTimeout(() => copyBtn.textContent = originalText, 2000);
+      });
+    });
+  }
+}
+
+async function bootstrap() {
+  bindTabs();
+  bindForms();
+  bindActions();
+  bindEvents();
+  activateTab("home");
+
+  let attempts = 0;
+  while (attempts < 50) {
+    attempts += 1;
+    try {
+      await refreshState();
+      setInterval(autoRefreshStats, 3000);
+      return;
+    } catch (error) {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+  }
+
+  document.getElementById("home-summary").textContent = "Failed to connect to Wails bindings.";
+}
+
+window.addEventListener("DOMContentLoaded", () => {
+  bootstrap().catch((error) => {
+    document.getElementById("home-summary").textContent = error.message || String(error);
+  });
+});
