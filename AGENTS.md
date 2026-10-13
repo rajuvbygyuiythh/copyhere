@@ -69,6 +69,7 @@ Short version:
 | `internal/model/ui.go` | `ChatModeEVAChat = "eva_chat_flow"`, legacy `keyword` migration |
 | `app.go` | `SaveMessageSettings`, `OpenEVAChatDataFolder`, worker config for EVA mode |
 | `cmd/chitchatui/frontend/dist/{index.html,app.js}` | dashboard radio + EVA panel |
+| `internal/logwall/` + `app_livewall.go` | Live Wall: Home counters + activity log mirrored to a local-only browser page (see `docs/LIVE_WALL.md`) |
 
 `cmd/chitchatui/app.go` is a legacy duplicate UI that the official build
 (`wails.json`, `scripts/bundle-windows.ps1`) does not use. Leave it alone.

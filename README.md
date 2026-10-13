@@ -8,6 +8,8 @@ Clean source-only project for the Windows Wails desktop app and CLI worker.
 - Wails dashboard source/assets
 - EVAChat Flow engine and embedded editable starter TXT pack
 - Build script, test report, database/editing guide, and security `.gitignore`
+- Live Wall: Home counters + chat log mirrored to a full-screen sci-fi page in
+  the PC browser (`docs/LIVE_WALL.md`), opened automatically on Start Bot
 
 ## Not included
 

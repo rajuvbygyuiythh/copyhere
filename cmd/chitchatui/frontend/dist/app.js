@@ -162,6 +162,8 @@ function fillForms(snapshot) {
   document.getElementById("match-close-wait-max").value = snapshot.general.match_close_wait_max_seconds || 0;
   document.getElementById("reply-delay-min").value = snapshot.general.reply_delay_min_seconds || 0;
   document.getElementById("reply-delay-max").value = snapshot.general.reply_delay_max_seconds || 0;
+  document.getElementById("live-wall-enabled").checked = !snapshot.general.live_wall_disabled;
+  document.getElementById("live-wall-port").value = snapshot.general.live_wall_port || "";
   renderBrowserOptions(snapshot.browser_options || [], snapshot.browser.backend || "rod");
   renderHomeStats(snapshot.home);
   setRunning(!!snapshot.running);
@@ -351,12 +353,32 @@ function bindForms() {
       match_close_wait_max_seconds: Number(document.getElementById("match-close-wait-max").value),
       reply_delay_min_seconds: Number(document.getElementById("reply-delay-min").value),
       reply_delay_max_seconds: Number(document.getElementById("reply-delay-max").value),
+      live_wall_disabled: !document.getElementById("live-wall-enabled").checked,
+      live_wall_port: Number(document.getElementById("live-wall-port").value) || 0,
     });
     await refreshState();
+  });
+
+  document.getElementById("open-live-wall-folder").addEventListener("click", async () => {
+    try {
+      await invoke("OpenLiveWallFolder");
+    } catch (error) {
+      document.getElementById("home-summary").textContent = error.message || String(error);
+    }
   });
 }
 
 function bindActions() {
+  document.getElementById("open-live-wall").addEventListener("click", async () => {
+    const summary = document.getElementById("home-summary");
+    try {
+      const url = await invoke("OpenLiveWall");
+      summary.textContent = `Live Wall opened: ${url} (press F in the browser for fullscreen)`;
+    } catch (error) {
+      summary.textContent = error.message || String(error);
+    }
+  });
+
   document.getElementById("start-bot").addEventListener("click", async () => {
     await invoke("StartBot");
     await refreshState();

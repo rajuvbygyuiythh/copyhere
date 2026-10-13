@@ -52,6 +52,7 @@
             <p>Start the bot and watch the live log stream.</p>
           </div>
           <div class="actions">
+            <button id="open-live-wall" class="secondary-button" title="Open the Live Wall (browser mirror of this screen)">Live Wall</button>
             <button id="clean-profiles" class="secondary-button">Clean</button>
             <button id="refresh-state" class="secondary-button">Refresh</button>
             <button id="clear-logs" class="secondary-button">Clear Logs</button>
@@ -327,7 +328,18 @@
             <input type="number" id="reply-delay-max" min="0" placeholder="0 (no wait)">
           </label>
 
+          <label class="checkbox-row">
+            <input type="checkbox" id="live-wall-enabled">
+            <span>Open Live Wall in browser when the bot starts (sci-fi full-screen mirror of Home)</span>
+          </label>
+
+          <label>
+            <span>Live Wall port (127.0.0.1 only)</span>
+            <input type="number" id="live-wall-port" min="1024" max="65535" placeholder="47321">
+          </label>
+
           <div class="form-actions">
+            <button type="button" id="open-live-wall-folder" class="secondary-button">Background photos folder</button>
             <button type="submit" class="primary-button">Save Settings</button>
           </div>
         </form>
@@ -335,6 +347,6 @@
     </main>
   </div>
 
-  <script src="./app.js?v=2"></script>
+  <script src="./app.js?v=3"></script>
 </body>
 </html>

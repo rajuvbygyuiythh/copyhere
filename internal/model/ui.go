@@ -62,6 +62,10 @@ type GeneralSettings struct {
 	MatchCloseWaitMaxSeconds    int `json:"match_close_wait_max_seconds"`
 	ReplyDelayMinSeconds        int `json:"reply_delay_min_seconds"`
 	ReplyDelayMaxSeconds        int `json:"reply_delay_max_seconds"`
+	// Live Wall (browser mirror of the Home screen). Zero values keep it
+	// enabled on the default port so existing settings need no migration.
+	LiveWallDisabled bool `json:"live_wall_disabled,omitempty"`
+	LiveWallPort     int  `json:"live_wall_port,omitempty"`
 }
 
 type HomeStats struct {

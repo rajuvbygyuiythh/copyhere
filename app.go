@@ -17,6 +17,7 @@ import (
 
 	"chitchatbot/internal/bot"
 	"chitchatbot/internal/license"
+	"chitchatbot/internal/logwall"
 	"chitchatbot/internal/model"
 	"chitchatbot/internal/proxy"
 	"chitchatbot/internal/store"
@@ -38,6 +39,7 @@ type App struct {
 	licenseReason  string
 	licenseTimer   *time.Ticker
 	licenseDone    chan bool
+	liveWall       *logwall.Server
 }
 
 func NewApp(dataDir string) (*App, error) {
@@ -113,6 +115,12 @@ func (a *App) startup(ctx context.Context) {
 
 func (a *App) shutdown(ctx context.Context) {
 	_ = a.StopBot()
+	a.mu.Lock()
+	wall := a.liveWall
+	a.mu.Unlock()
+	if wall != nil {
+		_ = wall.Close()
+	}
 	if a.licenseTimer != nil {
 		a.licenseTimer.Stop()
 	}
@@ -412,6 +420,9 @@ func (a *App) ClearLogs() error {
 		return err
 	}
 	a.emit("ui:logs_cleared", true)
+	if wall := a.currentLiveWall(); wall != nil {
+		wall.LogsCleared()
+	}
 	a.log("info", "Logs cleared.")
 	return nil
 }
@@ -557,6 +568,7 @@ func (a *App) StartBot() error {
 
 	a.emitStatus(true)
 	a.log("activity", "bot started wait to process")
+	go a.autoOpenLiveWall()
 
 	configs, err := a.buildBotConfigs()
 	if err != nil {
@@ -1035,6 +1047,9 @@ func (a *App) loadProxyEntries() ([]proxy.Entry, error) {
 
 func (a *App) emitStatus(running bool) {
 	a.emit("ui:running", running)
+	if wall := a.currentLiveWall(); wall != nil {
+		wall.SetRunning(running)
+	}
 }
 
 func (a *App) emit(name string, data any) {
@@ -1048,5 +1063,8 @@ func (a *App) log(level string, message string) {
 	entry, err := a.uiStore.AppendLog(level, message)
 	if err == nil {
 		a.emit("ui:log", entry)
+		if wall := a.currentLiveWall(); wall != nil {
+			wall.Publish(entry)
+		}
 	}
 }
