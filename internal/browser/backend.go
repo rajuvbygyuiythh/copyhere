@@ -73,6 +73,8 @@ type FetchResponse struct {
 	Status     int    `json:"status"`
 	StatusText string `json:"statusText"`
 	Text       string `json:"text"`
+	// Headers: selected response headers as seen by the page (lowercase).
+	Headers map[string]string `json:"headers,omitempty"`
 }
 
 type Backend interface {

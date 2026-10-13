@@ -956,6 +956,7 @@ func (a *App) workerConfig(env *botRunEnv, assignment workerplan.Assignment) bot
 	)
 	cfg.LoginInfoPath = assignment.LoginInfoPath
 	cfg.BrowserTimezone = browserSettings.EffectiveTimezone()
+	cfg.DebugAPI = generalSettings.DebugAPI
 	if browserSettings.BrowserMode {
 		// Browser mode: the window must be visible (that is the point).
 		cfg.BrowserMode = true

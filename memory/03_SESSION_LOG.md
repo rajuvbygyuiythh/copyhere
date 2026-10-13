@@ -125,3 +125,9 @@ Format: date · commit(s) · what · why/notes. Older history condensed.
 - Decoded `response-time-id` = xorEncode(transportKey, currentUserId) — confirmed on 25 samples; transport-encoding fingerprint schema identical to ours (timezone + hardwareConcurrency travel to the server on every message).
 - Shipped: `internal/bot/client_sync.go` (+tests), `match()` now disconnect→match with headers, `withReadReceipts`, `logAccountStanding`, `presenceSync` ticker in `realtime.go`, `browser.Options.HardwareConcurrency` + `stealthScript(options)`.
 - Checks: browser_pkg_check OK, offline_typecheck OK, `go test -race ./internal/bot ./internal/api` OK, vet clean.
+
+## 2026-10-14 — P10b "improve missing gap and improve debug"
+- api: `FetchResponse.Headers` (allow-list: x-ratelimit-*, retry-after, content-type, cf-ray, x-envoy-upstream-service-time), `FilterHeaders`, `RateLimit()`, `TraceEvent`/`SetTrace`; browser fetchFunction returns the same headers; browserExecutor passes them through.
+- bot: `debug.go` (apiTracer, registry per profile, `waitForSendQuota` in `sendDMMessage`, `startStandingMonitor`), `client_sync.go` (`standingSummary`, `fetchStandingSummary`, notifications unread), `realtime.go` (`messageEdited`, info events, `forwardable()`), `Config.DebugAPI`.
+- model/UI: `GeneralSettings.DebugAPI` (`debug_api`), checkbox in General form, build tag `2026-10-14e`.
+- Checks: browser_pkg_check OK, offline_typecheck OK, `go test -race` bot+api OK, vet clean, ui_smoke OK.

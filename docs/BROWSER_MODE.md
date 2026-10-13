@@ -106,3 +106,29 @@ All of this is best effort: a failing parity call is logged once per account
 `/match/disconnect` were not in the capture; the bot sends `{}` (same as the
 working `/typing` call). If the live log shows `[sync] … -> 400 …`, send that
 line and the body will be adjusted.
+
+## Debug layer (2026-10-14e)
+
+Settings → General → **Debug → API trace** (`general.debug_api`, default off).
+
+Always on (no toggle needed):
+- `x-ratelimit-*` headers are read on every response (Go client and in-page
+  fetch). After a send that answers `x-ratelimit-remaining: 0`, the next send
+  waits for the reset window (`[ratelimit] message quota used up (0/10); …`).
+- Errors (status ≥ 400 or transport error) and slow calls (> 3 s) appear as
+  `[api] POST /match 403 412ms body={"message":…}` (ids masked `6ac8…e37`).
+- `[api] final summary: N calls (201×12 204×30 …), E transport errors, avg …`
+  when a worker stops; a periodic summary every 10 min when something failed.
+- `GET /moderation/standing` re-checked every 30 min → `[standing] CHANGED: …`.
+- Socket `messageEdited` with `flags=1` → `[moderation] ChitChat redacted OUR
+  message / partner X: "text"`; our own redaction is also an activity line so
+  the owner can soften the template. `newNotification` → `[realtime] notification: …`.
+- Startup also reads `/users/me/notifications` (`[sync] N unread …`).
+
+With the toggle on:
+- `data\debug\<account>_api.log` (rotated at 5 MB → `.1`): one line per
+  request `15:04:05.123 POST /users/me/conversations/6ac8…e37/messages 201 388ms rl=9/10 reset=3s via=browser`.
+  Never cookies, tokens or request bodies; error responses keep 160 chars.
+- Every non-GET request is mirrored to the live log as `[api] …`; GET polls
+  stay in the file only. `updateRelationship` / `friendStatus` socket events
+  are logged too.

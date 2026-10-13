@@ -146,7 +146,7 @@
       <section class="tab-panel" data-panel="message">
         <header class="panel-header">
           <div>
-            <h1>Message <span id="ui-build-tag" style="font-size:0.5em; font-weight:normal; color:var(--muted); vertical-align:middle;">UI build 2026-10-14d · 4 chat modes · live browser v2</span></h1>
+            <h1>Message <span id="ui-build-tag" style="font-size:0.5em; font-weight:normal; color:var(--muted); vertical-align:middle;">UI build 2026-10-14e · 4 chat modes · live browser v2 · debug</span></h1>
             <p>One line equals one bot message step. Line 1 is first message, line 2 is second reply, line 3 is third reply, and so on.</p>
           </div>
         </header>
@@ -450,6 +450,13 @@
           <label>
             <span>Live Wall port (127.0.0.1 only)</span>
             <input type="number" id="live-wall-port" min="1024" max="65535" placeholder="47321">
+          </label>
+
+          <div class="form-section-title" style="grid-column: 1 / -1; margin-top: 10px; font-weight: 600;">Debug</div>
+
+          <label class="checkbox-row" style="grid-column: 1 / -1;">
+            <input type="checkbox" id="debug-api-enabled">
+            <span>API trace — write every request to <code>data\debug\&lt;account&gt;_api.log</code> and show <code>[api]</code> lines (writes, errors, slow calls, rate limits) in the live log</span>
           </label>
 
           <div class="form-actions">

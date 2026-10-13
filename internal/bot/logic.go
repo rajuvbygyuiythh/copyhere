@@ -130,6 +130,11 @@ func sendDMMessage(
 		logf(cfg, "POST typing failed for %s: %d %s\n", conversationID, typingStatus, typingText)
 	}
 
+	// ChitChat allows 10 sends per 3 s; honour x-ratelimit-remaining: 0.
+	if err := waitForSendQuota(ctx, cfg); err != nil {
+		return 0, "", err
+	}
+
 	nonce := generateNonce(cfg.NonceAlphabet, 21)
 	contentType, body := buildMultipartBody(map[string]string{
 		"content": message,

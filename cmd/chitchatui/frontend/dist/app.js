@@ -202,6 +202,8 @@ function fillForms(snapshot) {
   document.getElementById("limit-cooldown").value = g.limit_cooldown_minutes || 20;
   document.getElementById("live-wall-enabled").checked = !snapshot.general.live_wall_disabled;
   document.getElementById("live-wall-port").value = snapshot.general.live_wall_port || "";
+  const dbg = document.getElementById("debug-api-enabled");
+  if (dbg) dbg.checked = !!snapshot.general.debug_api;
   renderBrowserOptions(snapshot.browser_options || [], snapshot.browser.backend || "rod");
   renderHomeStats(snapshot.home);
   setRunning(!!snapshot.running);
@@ -442,6 +444,7 @@ function bindForms() {
       limit_cooldown_minutes: Number(document.getElementById("limit-cooldown").value),
       live_wall_disabled: !document.getElementById("live-wall-enabled").checked,
       live_wall_port: Number(document.getElementById("live-wall-port").value) || 0,
+      debug_api: !!((document.getElementById("debug-api-enabled") || {}).checked),
     });
     await refreshState();
   });

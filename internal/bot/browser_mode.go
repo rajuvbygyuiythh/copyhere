@@ -106,7 +106,7 @@ func (e browserExecutor) Fetch(ctx context.Context, req api.FetchRequest) (api.F
 	if e.failures != nil {
 		e.failures.Store(0)
 	}
-	return api.FetchResponse{OK: resp.OK, Status: resp.Status, StatusText: resp.StatusText, Text: resp.Text}, nil
+	return api.FetchResponse{OK: resp.OK, Status: resp.Status, StatusText: resp.StatusText, Text: resp.Text, Headers: api.FilterHeaders(resp.Headers)}, nil
 }
 
 // windowGone counts a failure and, after browserProbeAfterFailures in a row,

@@ -243,14 +243,45 @@ type moderationStanding struct {
 	ActiveViolations []json.RawMessage `json:"activeViolations"`
 }
 
-// logAccountStanding mimics the SPA's load sequence (GET /match/active,
-// GET /moderation/standing) and tells the owner if the account carries
-// warnings or feature limits before it gets banned.
-func logAccountStanding(ctx context.Context, client *api.Client, cfg Config) {
-	if client == nil {
-		return
+// standingSummary renders the moderation standing as one comparable line.
+func standingSummary(st moderationStanding) (string, bool) {
+	level := strings.ToUpper(strings.TrimSpace(st.Standing))
+	warnings, violations, limited := len(st.PendingWarnings), len(st.ActiveViolations), len(st.LimitedFeatures)
+	clean := warnings == 0 && violations == 0 && limited == 0 &&
+		(level == "" || level == "GOOD" || level == "OK" || level == "NORMAL" || level == "CLEAN" || level == "NONE")
+	if clean {
+		return orDefault(level, "GOOD") + " — no warnings, no limits", true
 	}
+	return fmt.Sprintf("standing=%s pendingWarnings=%d activeViolations=%d limitedFeatures=%d",
+		orDefault(level, "?"), warnings, violations, limited), false
+}
+
+// fetchStandingSummary does GET /moderation/standing and returns the summary
+// line (ok=false when the call failed).
+func fetchStandingSummary(ctx context.Context, client *api.Client, cfg Config) (string, bool) {
 	reqCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	resp, err := client.Fetch(reqCtx, api.FetchRequest{Method: "GET", URL: cfg.APIBaseURL + "/moderation/standing"})
+	if err != nil || !resp.OK {
+		return "", false
+	}
+	var st moderationStanding
+	if json.Unmarshal([]byte(resp.Text), &st) != nil {
+		return "", false
+	}
+	summary, _ := standingSummary(st)
+	return summary, true
+}
+
+// logAccountStanding mimics the SPA's load sequence (GET /match/active,
+// GET /users/me/notifications, GET /moderation/standing) and tells the owner
+// if the account carries warnings or feature limits before it gets banned.
+// It returns the standing summary so a monitor can detect changes later.
+func logAccountStanding(ctx context.Context, client *api.Client, cfg Config) string {
+	if client == nil {
+		return ""
+	}
+	reqCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	if resp, err := client.Fetch(reqCtx, api.FetchRequest{Method: "GET", URL: cfg.APIBaseURL + "/match/active"}); err == nil && resp.OK {
@@ -262,33 +293,45 @@ func logAccountStanding(ctx context.Context, client *api.Client, cfg Config) {
 		}
 	}
 
+	if resp, err := client.Fetch(reqCtx, api.FetchRequest{Method: "GET", URL: cfg.APIBaseURL + "/users/me/notifications"}); err == nil && resp.OK {
+		var notes struct {
+			UnreadCount int `json:"unreadCount"`
+		}
+		if json.Unmarshal([]byte(resp.Text), &notes) == nil && notes.UnreadCount > 0 {
+			logf(cfg, "[sync] %d unread ChitChat notification(s) on this account.\n", notes.UnreadCount)
+		}
+	}
+
 	resp, err := client.Fetch(reqCtx, api.FetchRequest{Method: "GET", URL: cfg.APIBaseURL + "/moderation/standing"})
-	if err != nil || !resp.OK {
-		return
+	if err != nil {
+		logf(cfg, "[standing] could not read /moderation/standing: %v\n", err)
+		return ""
+	}
+	if !resp.OK {
+		logf(cfg, "[standing] /moderation/standing -> %d %s\n", resp.Status, trimForLog(resp.Text))
+		return ""
 	}
 	var standing moderationStanding
 	if json.Unmarshal([]byte(resp.Text), &standing) != nil {
-		return
+		logf(cfg, "[standing] unexpected answer: %s\n", trimForLog(resp.Text))
+		return ""
 	}
-	level := strings.ToUpper(strings.TrimSpace(standing.Standing))
-	warnings := len(standing.PendingWarnings)
-	violations := len(standing.ActiveViolations)
-	limited := len(standing.LimitedFeatures)
-	if warnings == 0 && violations == 0 && limited == 0 && (level == "" || level == "GOOD" || level == "OK" || level == "NORMAL" || level == "CLEAN" || level == "NONE") {
-		logf(cfg, "[standing] %s — no warnings, no limits.\n", orDefault(level, "GOOD"))
-		return
+	summary, clean := standingSummary(standing)
+	if clean {
+		logf(cfg, "[standing] %s.\n", summary)
+		return summary
 	}
-	logf(cfg, "[standing] WARN standing=%s pendingWarnings=%d activeViolations=%d limitedFeatures=%d — this account is on ChitChat's radar; consider resting it.\n",
-		orDefault(level, "?"), warnings, violations, limited)
-	if limited > 0 {
+	logf(cfg, "[standing] WARN %s — this account is on ChitChat's radar; consider resting it.\n", summary)
+	if len(standing.LimitedFeatures) > 0 {
 		logf(cfg, "[standing] limitedFeatures: %s\n", trimForLog(string(mustJSON(standing.LimitedFeatures))))
 	}
-	if violations > 0 {
+	if len(standing.ActiveViolations) > 0 {
 		logf(cfg, "[standing] activeViolations: %s\n", trimForLog(string(mustJSON(standing.ActiveViolations))))
 	}
-	if warnings > 0 {
+	if len(standing.PendingWarnings) > 0 {
 		logf(cfg, "[standing] pendingWarnings: %s\n", trimForLog(string(mustJSON(standing.PendingWarnings))))
 	}
+	return summary
 }
 
 // ---- small helpers ----

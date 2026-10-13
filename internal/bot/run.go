@@ -17,13 +17,16 @@ import (
 )
 
 type Config struct {
-	AppURL               string
-	APIBaseURL           string
-	DataDir              string
-	Profile              string
-	LoginInfoPath        string
-	Backend              string
-	Headless             bool
+	AppURL        string
+	APIBaseURL    string
+	DataDir       string
+	Profile       string
+	LoginInfoPath string
+	Backend       string
+	Headless      bool
+	// DebugAPI writes every API request to data/debug/<profile>_api.log and
+	// mirrors writes / errors to the live log as "[api] …" lines.
+	DebugAPI             bool
 	BrowserMode          bool            // keep the real browser open; chat through its page
 	BrowserTimezone      string          // emulated timezone for the window (proxy |tz= overrides)
 	AttachedBackend      browser.Backend // Browser mode: an already open, logged-in window to adopt (fresh-login handover)
@@ -127,13 +130,29 @@ func Run(ctx context.Context, cfg Config) (retErr error) {
 	}
 	var realtimeEvents <-chan realtimeEvent
 	var stopRealtime context.CancelFunc
+	// Debug / observability: every request of this worker goes through the
+	// tracer (rate-limit tracking, [api] lines, data/debug/<profile>_api.log).
+	tracer := newAPITracer(cfg)
+	registerTracer(cfg.Profile, tracer)
+	defer func() {
+		registerTracer(cfg.Profile, nil)
+		tracer.Close()
+	}()
+	if cfg.DebugAPI {
+		if tracer.path != "" {
+			logf(cfg, "[debug] API trace on → %s\n", tracer.path)
+		} else {
+			logln(cfg, "[debug] API trace on (live log only; debug folder not writable)")
+		}
+	}
+
 	var syncClient *api.Client // long-lived client for read receipts / startup calls
 	if bsession != nil {
 		logln(cfg, "[browser] Realtime websocket is off in Browser mode; the window polls for new messages every few seconds instead.")
-		syncClient = bsession.client(login)
+		syncClient = tracer.Attach(bsession.client(login))
 		realtimeEvents = startBrowserEventPoller(ctx, cfg, syncClient, currentUserID, bsession)
 	} else {
-		syncClient = api.New(login, cfg.AppURL, cfg.ProxyRotator)
+		syncClient = tracer.Attach(api.New(login, cfg.AppURL, cfg.ProxyRotator))
 		realtimeEvents, stopRealtime = startRealtimeListener(ctx, cfg, login, currentUserID)
 	}
 	defer func() {
@@ -144,7 +163,7 @@ func Run(ctx context.Context, cfg Config) (retErr error) {
 	// Real-client parity: read receipts for partner messages + the SPA's
 	// load-time calls (/match/active, /moderation/standing).
 	realtimeEvents = withReadReceipts(ctx, syncClient, cfg, currentUserID, realtimeEvents)
-	logAccountStanding(ctx, syncClient, cfg)
+	startStandingMonitor(ctx, syncClient, cfg, logAccountStanding(ctx, syncClient, cfg))
 
 	logln(cfg, "Login ready. Starting bot loop.")
 	browserCycleFailures := 0
@@ -155,9 +174,9 @@ func Run(ctx context.Context, cfg Config) (retErr error) {
 	for {
 		var client *api.Client
 		if bsession != nil {
-			client = bsession.client(login)
+			client = tracer.Attach(bsession.client(login))
 		} else {
-			client = api.New(login, cfg.AppURL, cfg.ProxyRotator)
+			client = tracer.Attach(api.New(login, cfg.AppURL, cfg.ProxyRotator))
 		}
 
 		workDone, err := runCycle(ctx, client, cfg, p, login, currentUserID, rng)

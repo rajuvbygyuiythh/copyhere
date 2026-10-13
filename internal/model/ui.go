@@ -91,6 +91,9 @@ type GeneralSettings struct {
 	// enabled on the default port so existing settings need no migration.
 	LiveWallDisabled bool `json:"live_wall_disabled,omitempty"`
 	LiveWallPort     int  `json:"live_wall_port,omitempty"`
+	// DebugAPI: per-account API trace file (data\debug\<account>_api.log)
+	// and "[api] …" lines in the live log. Off by default.
+	DebugAPI bool `json:"debug_api,omitempty"`
 	// Human pacing (opener policy + shift pacing). Zero values are replaced
 	// by DefaultPacing() when loaded, so old settings need no migration.
 	PacingDisabled       bool `json:"pacing_disabled,omitempty"`

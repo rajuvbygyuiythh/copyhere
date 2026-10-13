@@ -99,6 +99,18 @@ type realtimeEvent struct {
 	InQueue        bool
 	HasQueueState  bool
 	Target         model.DMTarget
+	// Flags is set on messageEdited events (1 = ChitChat redacted the text).
+	Flags int
+}
+
+// forwardable reports whether consumers (match loops, pollers) should
+// receive the event; informational events are only logged.
+func (e realtimeEvent) forwardable() bool {
+	switch e.Type {
+	case "messageEdited", "newNotification", "updateRelationship", "friendStatus", "onlineFriends":
+		return false
+	}
+	return true
 }
 
 const (
@@ -289,6 +301,9 @@ func connectRealtimeSocket(
 				continue
 			}
 			logRealtimeEvent(cfg, currentUserID, event)
+			if !event.forwardable() {
+				continue
+			}
 			select {
 			case events <- event:
 			default:
@@ -543,6 +558,35 @@ func parseRealtimeEvent(packet string, currentUserID string) (realtimeEvent, boo
 			HasQueueState:  hasQueueState,
 			Target:         target,
 		}, true, nil
+	case "messageEdited":
+		// Sent when the server edits a message after the fact; flags=1 means
+		// the moderation filter redacted the text (seen in the captures).
+		var payload struct {
+			Message struct {
+				ID             string `json:"id"`
+				ConversationID string `json:"conversationId"`
+				Content        string `json:"content"`
+				Flags          int    `json:"flags"`
+				Author         struct {
+					ID       string `json:"id"`
+					Username string `json:"username"`
+				} `json:"author"`
+			} `json:"message"`
+		}
+		if err := json.Unmarshal(parts[1], &payload); err != nil {
+			return realtimeEvent{}, false, err
+		}
+		return realtimeEvent{
+			Type:           eventName,
+			ConversationID: payload.Message.ConversationID,
+			UserID:         payload.Message.Author.ID,
+			Username:       payload.Message.Author.Username,
+			MessageID:      payload.Message.ID,
+			Content:        payload.Message.Content,
+			Flags:          payload.Message.Flags,
+		}, true, nil
+	case "newNotification", "updateRelationship", "friendStatus":
+		return realtimeEvent{Type: eventName, Content: trimForLog(string(parts[1]))}, true, nil
 	default:
 		return realtimeEvent{}, false, nil
 	}
@@ -550,6 +594,28 @@ func parseRealtimeEvent(packet string, currentUserID string) (realtimeEvent, boo
 
 func logRealtimeEvent(cfg Config, currentUserID string, event realtimeEvent) {
 	switch event.Type {
+	case "messageEdited":
+		who := "partner " + event.Username
+		if event.UserID == currentUserID {
+			who = "OUR message"
+		}
+		if event.Flags&1 != 0 {
+			logf(cfg, "[moderation] ChitChat redacted %s in conversation %s: %q (flags=%d)\n", who, event.ConversationID, trimForLog(event.Content), event.Flags)
+			if event.UserID == currentUserID {
+				activityf(cfg, "[moderation] WARN our text %q was flagged by the filter — soften wording in the templates/persona.\n", trimForLog(event.Content))
+			}
+		} else {
+			logf(cfg, "[realtime] message edited by %s in conversation %s (flags=%d)\n", who, event.ConversationID, event.Flags)
+		}
+		return
+	case "newNotification":
+		logf(cfg, "[realtime] notification: %s\n", event.Content)
+		return
+	case "updateRelationship", "friendStatus":
+		if cfg.DebugAPI {
+			logf(cfg, "[realtime] %s: %s\n", event.Type, event.Content)
+		}
+		return
 	case "typing":
 		if event.UserID != "" && event.UserID != currentUserID {
 			logf(cfg, "[realtime] typing user=%s conversation=%s\n", event.UserID, event.ConversationID)

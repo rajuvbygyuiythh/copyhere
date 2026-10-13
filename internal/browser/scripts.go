@@ -60,11 +60,19 @@ const fetchFunction = `async (request) => {
   try {
     const response = await fetch(request.url, options);
     const text = await response.text();
+    const headers = {};
+    try {
+      const keep = ["x-ratelimit-limit", "x-ratelimit-remaining", "x-ratelimit-reset", "retry-after", "content-type", "cf-ray", "x-envoy-upstream-service-time"];
+      response.headers.forEach((value, name) => {
+        if (keep.indexOf(String(name).toLowerCase()) !== -1) { headers[String(name).toLowerCase()] = value; }
+      });
+    } catch (e) {}
     return {
       ok: response.ok,
       status: response.status,
       statusText: response.statusText,
       text,
+      headers,
     };
   } catch (error) {
     return {

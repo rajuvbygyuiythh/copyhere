@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,7 +27,68 @@ type FetchResponse struct {
 	Status     int    `json:"status"`
 	StatusText string `json:"statusText"`
 	Text       string `json:"text"`
+	// Headers holds a small allow-listed set of response headers (lowercase
+	// names): rate-limit counters, retry-after, content-type, cf-ray.
+	Headers map[string]string `json:"headers,omitempty"`
 }
+
+// TracedHeaders are the only response headers kept on FetchResponse.
+var TracedHeaders = []string{
+	"x-ratelimit-limit", "x-ratelimit-remaining", "x-ratelimit-reset",
+	"retry-after", "content-type", "cf-ray", "x-envoy-upstream-service-time",
+}
+
+// FilterHeaders keeps only TracedHeaders (case-insensitive) from raw.
+func FilterHeaders(raw map[string]string) map[string]string {
+	if len(raw) == 0 {
+		return nil
+	}
+	out := map[string]string{}
+	for k, v := range raw {
+		lk := strings.ToLower(strings.TrimSpace(k))
+		for _, want := range TracedHeaders {
+			if lk == want {
+				out[lk] = strings.TrimSpace(v)
+			}
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// RateLimit returns (remaining, limit, resetSeconds); -1 when the header is
+// absent. ChitChat sends 10/3s for message sends and 500/60s for reads.
+func (r FetchResponse) RateLimit() (remaining, limit, reset int) {
+	get := func(name string) int {
+		v, ok := r.Headers[name]
+		if !ok {
+			return -1
+		}
+		n, err := strconv.Atoi(strings.TrimSpace(v))
+		if err != nil {
+			return -1
+		}
+		return n
+	}
+	return get("x-ratelimit-remaining"), get("x-ratelimit-limit"), get("x-ratelimit-reset")
+}
+
+// TraceEvent describes one finished request (never carries cookies, tokens
+// or request bodies).
+type TraceEvent struct {
+	Method   string
+	URL      string
+	Status   int
+	Duration time.Duration
+	Err      error
+	Via      bool // executed inside the browser page
+	Response FetchResponse
+}
+
+// TraceFunc receives every finished request of a Client.
+type TraceFunc func(TraceEvent)
 
 type Client struct {
 	httpClient *http.Client
@@ -34,7 +96,32 @@ type Client struct {
 	appURL     string
 	// via, when set, executes every request instead of httpClient (Browser
 	// mode: the request runs inside the real browser page).
-	via Executor
+	via   Executor
+	trace TraceFunc
+}
+
+// SetTrace installs a hook that sees every finished request (debug log,
+// rate-limit tracking). Returns the client for chaining.
+func (c *Client) SetTrace(fn TraceFunc) *Client {
+	if c != nil {
+		c.trace = fn
+	}
+	return c
+}
+
+func (c *Client) emitTrace(start time.Time, req FetchRequest, resp FetchResponse, err error) {
+	if c == nil || c.trace == nil {
+		return
+	}
+	c.trace(TraceEvent{
+		Method:   req.Method,
+		URL:      req.URL,
+		Status:   resp.Status,
+		Duration: time.Since(start),
+		Err:      err,
+		Via:      c.via != nil,
+		Response: resp,
+	})
 }
 
 // Executor runs one request somewhere else than the Go http client.
@@ -75,6 +162,13 @@ func New(login model.LoginInfo, appURL string, proxyRotator *proxy.Rotator) *Cli
 }
 
 func (c *Client) Fetch(ctx context.Context, req FetchRequest) (FetchResponse, error) {
+	start := time.Now()
+	resp, err := c.fetch(ctx, req)
+	c.emitTrace(start, req, resp, err)
+	return resp, err
+}
+
+func (c *Client) fetch(ctx context.Context, req FetchRequest) (FetchResponse, error) {
 	if c.via != nil {
 		return c.via.Fetch(ctx, req)
 	}
@@ -111,11 +205,18 @@ func (c *Client) Fetch(ctx context.Context, req FetchRequest) (FetchResponse, er
 		return FetchResponse{}, err
 	}
 
+	raw := make(map[string]string, len(TracedHeaders))
+	for _, name := range TracedHeaders {
+		if v := resp.Header.Get(name); v != "" {
+			raw[name] = v
+		}
+	}
 	return FetchResponse{
 		OK:         resp.StatusCode >= 200 && resp.StatusCode < 300,
 		Status:     resp.StatusCode,
 		StatusText: resp.Status,
 		Text:       string(data),
+		Headers:    FilterHeaders(raw),
 	}, nil
 }
 
