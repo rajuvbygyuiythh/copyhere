@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -97,26 +98,42 @@ var (
 		regexp.MustCompile(`(?i)\bi'?m (\d{2})\b`),
 		regexp.MustCompile(`(?i)\b(\d{2}) ?(yo|years? old|yrs)\b`),
 	}
-	byeRe        = regexp.MustCompile(`(?i)\b(bye|gtg|g2g|brb|ttyl|cya|gotta go|leaving|later)\b`)
-	questionRe   = regexp.MustCompile(`(?i)\b(wyd|hbu|wbu|how|what|where|why|when|who|r u|are u|do u|u got|got any|asl|age)\b`)
-	botQRe       = regexp.MustCompile(`(?i)(r u (a )?(bot|real|fake|ai|human)|are (u|you) (a )?(bot|real|fake|ai|human)|\bbot\b|\bfake\b|\bscam|\bai\b|\breal\?)`)
-	picAskRe     = regexp.MustCompile(`(?i)\b(send|show|got|have|any|ur|your)\b.*\b(pics?|photo|selfie|face)\b|\b(pics?|photo|selfie)\?`)
-	laughRe      = regexp.MustCompile(`(?i)\b(lol|lmao|haha+|hehe|rofl|😂|💀)`)
-	lonelyRe     = regexp.MustCompile(`(?i)\b(bored|boring|alone|lonely|cant sleep|can't sleep|nothing much|nm|nothin|chilling|chillin)\b`)
-	lowEffortRe  = regexp.MustCompile(`(?i)^(k|kk|ok|okay|oh|ohh|lol|lmao|haha+|hmm+|cool|nice|yea+h*|ya|yep|nah|idk|same|true|fr|wow|good|fine|nothing|nm|u\??|wbu\??|hbu\??|and\??|so\??|\W*)$`)
-	hesitantRe   = regexp.MustCompile(`(?i)\b(idk|maybe|why|what for|hmm+|depends|not sure|later|dunno|we'?ll see|for what)\b`)
-	aslAskRe     = regexp.MustCompile(`(?i)(\basl\b|\bage\b|how old|\bold r u|\bold are (u|you)|\bm or f\b|\bf or m\b|\bgender\b|r u a (girl|guy|boy|female|male)|are (u|you) a (girl|guy|boy|female|male)|\bgirl or\b|^(u|you|wbu|hbu|and u|n u)\s*\??$)`)
-	placeRe      = regexp.MustCompile(`(?i)\b(?:from|in|live in|living in|based in)\s+(?:the\s+)?([a-z]{3,}(?:\s[a-z]{3,})?)\b|\b([a-z]{3,}(?:\s[a-z]{3,})?)\s+here\b`)
-	placeStop    = regexp.MustCompile(`(?i)^(the|here|there|bed|home|class|school|work|college|uni|my|a|an|this|that|love|mood|fact|case|general|front|time|real|life|town|it|and|but|lol|rn|now|bored|chat)$`)
-	knownPlaces  = regexp.MustCompile(`(?i)\b(usa|us|america|uk|england|london|canada|australia|germany|france|italy|spain|netherlands|sweden|norway|poland|ireland|scotland|mexico|brazil|india|texas|california|cali|florida|new york|nyc|ny|la|chicago|ohio|georgia|arizona|nevada|vegas|seattle|boston|michigan|colorado|utah|oregon|jersey|virginia|carolina|tennessee|kentucky|alabama|louisiana|miami|dallas|houston|austin|atlanta|philly|detroit|toronto|vancouver|sydney|melbourne|berlin|paris|amsterdam|dubai|pakistan|bangladesh|nigeria|philippines|indonesia|turkey|egypt|kenya|south africa|russia|ukraine|romania|greece|portugal|belgium|denmark|finland|austria|switzerland|czech|hungary|serbia|croatia)\b`)
-	nameRe       = regexp.MustCompile(`(?i)\b(?:i'?m|im|my name is|name's|names|call me|its|it's)\s+([a-z]{3,12})\b`)
-	nameStop     = regexp.MustCompile(`(?i)^(bored|horny|good|fine|home|here|alone|tired|from|just|not|also|single|new|down|kinda|lowkey|sorry|okay|chilling|chillin|lol|male|female|guy|girl|real|sure|done|back|still|only|like|about|gonna|going|trying|looking|texas|usa|cool|busy|lost|sad|happy|high|drunk|sleepy|hungry|the|that|this|what|wondering|curious|asking|serious|joking|kidding|saying|talking|thinking|waiting|lying|laying|sitting|doing|dying|dead)$`)
-	doingRe      = regexp.MustCompile(`(?i)\b(in bed|laying|lying|chilling|chillin|watching|gaming|playing|working|studying|eating|cooking|driving|at work|at home|at school|at the gym|gym|smoking|drinking|netflix|youtube|tiktok|cant sleep|can't sleep|just woke|about to sleep|nothing much|nothin|nm\b)`)
-	bareMaleRe   = regexp.MustCompile(`(?i)\b(i'?m|im) (a )?(guy|male|boy|man|dude)\b|^(m|male|guy|boy|dude)\W*$`)
-	bareFemaleRe = regexp.MustCompile(`(?i)\b(i'?m|im) (a )?(girl|female|woman)\b|^(f|female|girl)\W*$`)
-	bareAgeRe    = regexp.MustCompile(`(?i)^(?:im |i'm |i am |age )?(\d{2})\W*$`)
-	addedRe      = regexp.MustCompile(`(?i)\b(added|sent (u|you)? ?(a )?(req|request)|just added|adding|requested|follow(ed)?)\b`)
+	byeRe         = regexp.MustCompile(`(?i)\b(bye|gtg|g2g|brb|ttyl|cya|gotta go|leaving|later)\b`)
+	questionRe    = regexp.MustCompile(`(?i)\b(wyd|hbu|wbu|how|what|where|why|when|who|r u|are u|do u|u got|got any|asl|age)\b`)
+	botQRe        = regexp.MustCompile(`(?i)(r u (a )?(bot|real|fake|ai|human)|are (u|you) (a )?(bot|real|fake|ai|human)|\bbot\b|\bfake\b|\bscam|\bai\b|\breal\?)`)
+	picAskRe      = regexp.MustCompile(`(?i)\b(send|show|got|have|any|ur|your)\b.*\b(pics?|photo|selfie|face)\b|\b(pics?|photo|selfie)\?`)
+	laughRe       = regexp.MustCompile(`(?i)\b(lol|lmao|haha+|hehe|rofl|😂|💀)`)
+	lonelyRe      = regexp.MustCompile(`(?i)\b(bored|boring|alone|lonely|cant sleep|can't sleep|nothing much|nm|nothin|chilling|chillin)\b`)
+	lowEffortRe   = regexp.MustCompile(`(?i)^(k|kk|ok|okay|oh|ohh|lol|lmao|haha+|hmm+|cool|nice|yea+h*|ya|yep|nah|idk|same|true|fr|wow|good|fine|nothing|nm|u\??|wbu\??|hbu\??|and\??|so\??|\W*)$`)
+	hesitantRe    = regexp.MustCompile(`(?i)\b(idk|maybe|why|what for|hmm+|depends|not sure|later|dunno|we'?ll see|for what)\b`)
+	aslAskRe      = regexp.MustCompile(`(?i)(\basl\b|\bage\b|how old|\bold r u|\bold are (u|you)|\bm or f\b|\bf or m\b|\bgender\b|r u a (girl|guy|boy|female|male)|are (u|you) a (girl|guy|boy|female|male)|\bgirl or\b|^(u|you|wbu|hbu|and u|n u)\s*\??$)`)
+	placeRe       = regexp.MustCompile(`(?i)\b(?:from|in|live in|living in|based in)\s+(?:the\s+)?([a-z]{3,}(?:\s[a-z]{3,})?)\b|\b([a-z]{3,}(?:\s[a-z]{3,})?)\s+here\b`)
+	placeStop     = regexp.MustCompile(`(?i)^(the|here|there|bed|home|class|school|work|college|uni|my|a|an|this|that|love|mood|fact|case|general|front|time|real|life|town|it|and|but|lol|rn|now|bored|chat)$`)
+	knownPlaces   = regexp.MustCompile(`(?i)\b(usa|us|america|uk|england|london|canada|australia|germany|france|italy|spain|netherlands|sweden|norway|poland|ireland|scotland|mexico|brazil|india|texas|california|cali|florida|new york|nyc|ny|la|chicago|ohio|georgia|arizona|nevada|vegas|seattle|boston|michigan|colorado|utah|oregon|jersey|virginia|carolina|tennessee|kentucky|alabama|louisiana|miami|dallas|houston|austin|atlanta|philly|detroit|toronto|vancouver|sydney|melbourne|berlin|paris|amsterdam|dubai|pakistan|bangladesh|nigeria|philippines|indonesia|turkey|egypt|kenya|south africa|russia|ukraine|romania|greece|portugal|belgium|denmark|finland|austria|switzerland|czech|hungary|serbia|croatia)\b`)
+	nameRe        = regexp.MustCompile(`(?i)\b(?:i'?m|im|my name is|name's|names|call me|its|it's)\s+([a-z]{3,12})\b`)
+	nameStop      = regexp.MustCompile(`(?i)^(bored|horny|good|fine|home|here|alone|tired|from|just|not|also|single|new|down|kinda|lowkey|sorry|okay|chilling|chillin|lol|male|female|guy|girl|real|sure|done|back|still|only|like|about|gonna|going|trying|looking|texas|usa|cool|busy|lost|sad|happy|high|drunk|sleepy|hungry|the|that|this|what|wondering|curious|asking|serious|joking|kidding|saying|talking|thinking|waiting|lying|laying|sitting|doing|dying|dead)$`)
+	doingRe       = regexp.MustCompile(`(?i)\b(in bed|laying|lying|chilling|chillin|watching|gaming|playing|working|studying|eating|cooking|driving|at work|at home|at school|at the gym|gym|smoking|drinking|netflix|youtube|tiktok|cant sleep|can't sleep|just woke|about to sleep|nothing much|nothin|nm\b)`)
+	bareMaleRe    = regexp.MustCompile(`(?i)\b(i'?m|im) (a )?(guy|male|boy|man|dude)\b|^(m|male|guy|boy|dude)\W*$`)
+	bareFemaleRe  = regexp.MustCompile(`(?i)\b(i'?m|im) (a )?(girl|female|woman)\b|^(f|female|girl)\W*$`)
+	bareAgeRe     = regexp.MustCompile(`(?i)^(?:im |i'm |i am |age )?(\d{2})\W*$`)
+	nameAskRe     = regexp.MustCompile(`(?i)(ur name|your name|whats ur name|what's your name|name\?|who r u|who are u|who are you|what do i call u|call u\?|ur name\?|name tho)`)
+	insultRe      = regexp.MustCompile(`(?i)\b(bitch|slut|whore|ugly|stupid|dumb bitch|fuck you|fuck off|fuck u|stfu|kys|hoe|fat ass|retard\w*|loser|idiot|shut up|pathetic|ur fake|ur a fake|catfish)\b`)
+	moneyRe       = regexp.MustCompile(`(?i)\b(money|pay|paid|paypal|cashapp|cash app|venmo|zelle|onlyfans|only fans|\bof\b link|premium|selling|sell|price|how much|\$ ?\d|buy|subscribe|sugar daddy|sugar baby|gift card|crypto|bitcoin|invest)\b`)
+	hardQRe       = regexp.MustCompile(`(?i)\b(calculate|math|capital of|president|politic\w*|election|code|python|javascript|programming|explain|meaning of|define|definition|history of|religion|philosophy|translate|what is \d|\d+ ?[\+\-\*/x] ?\d+|who won|square root|quantum|economy|stock market|write (me )?a (poem|story|essay))\b`)
+	noSnapRe      = regexp.MustCompile(`(?i)(don'?t have (a )?snap|dont have (a )?sc|no snap|not on snap|deleted (my )?snap|snap got banned|don'?t use snap|i don'?t have (it|one|that)|dont have (it|one|that)|no sc\b|got no snap)`)
+	englishWords  = map[string]bool{}
+	nonLatinRe    = regexp.MustCompile(`[\p{Cyrillic}\p{Arabic}\p{Bengali}\p{Devanagari}\p{Han}\p{Hiragana}\p{Katakana}\p{Hangul}\p{Thai}\p{Hebrew}\p{Greek}]`)
+	trailingDotRe = regexp.MustCompile(`[.,]+\s*([^\w\s]*)\s*$`)
+	foreignRe     = regexp.MustCompile(`(?i)\b(hola|que|qué|como|cómo|estas|estás|guapa|bonita|bonjour|salut|ça va|ciao|bella|hallo|wie geht|kya|kaise|kaisi|haan|nahi|tum|aap|kemon|acho|tumi|apni|bhai|kaha|kahan|koi|merhaba|nasılsın|privet|kak dela|oi|tudo bem|voce|você|olá|habibi|kaif|halik|mabuhay|kumusta|apa kabar|selamat|xin chào|annyeong|konnichiwa|ni hao)\b`)
+	aiPhraseRe    = regexp.MustCompile(`(?i)\b(absolutely|sounds like (you|u)|feel free|that'?s (great|awesome|wonderful|fantastic|amazing)|i'?d love to|tell me more|i'?m here to|how can i help|great question|i appreciate|certainly|definitely|wonderful|fantastic|delightful|i understand|let'?s chat|chat with you|get to know (you|u)|what about yourself|interesting!|as an ai|language model|i'?m (just )?an ai|virtual|assistant|i cannot|i can'?t help with|inappropriate|respectful|boundaries|comfortable with|let'?s keep (it|this)|i'?m not able to)\b`)
+	addedRe       = regexp.MustCompile(`(?i)\b(added|sent (u|you)? ?(a )?(req|request)|just added|adding|requested|follow(ed)?)\b`)
 )
+
+func init() {
+	for _, w := range strings.Fields("the a an i im i'm u you ur your we they he she it is are am was be been do did does have has had not no yes yea yeah ok okay k lol lmao haha hey hi hello sup yo wyd hbu wbu what where when why who how which and or but so if then than too also just only like wanna gonna want need can could would should will may might from in on at to for of with about by up down out off over here there this that these those my me mine our us them him her his its one two 18 19 20 21 22 23 24 25 m f male female guy girl boy man woman bored horny cute hot sexy nice cool fine good bad great love hate miss know think feel see look talk chat text snap sc insta ig add send pic pics photo show tell ask say said says go going come came back home bed sleep tired night tonight today now rn later soon old age asl from live living school college uni work working job study studying class single taken bf gf friend friends real fake bot ai nah nope sure maybe idk idc tbh ngl fr lowkey kinda sorta btw omg bruh bro dude babe baby bae damn shit fuck wtf lmfao pls please thanks thx ty np wya hmu dm dms call vc number phone what's whats thats that's it's dont don't cant can't wont won't isnt isn't aint doesnt didnt wasnt werent") {
+		englishWords[w] = true
+	}
+}
 
 var allMoods = []string{"friendly", "playful", "lonely", "flirty", "fun/joke", "curious", "teasing"}
 var hotMoods = []string{"flirty", "teasing", "playful"}
@@ -129,6 +146,15 @@ var moodHints = map[string]string{
 	"fun/joke": "make a tiny joke or funny exaggeration about what they said",
 	"curious":  "genuinely curious about them, ask one specific thing",
 	"teasing":  "tease them playfully about what they said, confident",
+}
+
+var lorePool = struct{ Names, Majors, Years, Tonight, Shows, Snacks []string }{
+	Names:   []string{"emma", "mia", "ava", "chloe", "lily", "zoe", "ella", "madison", "hailey", "kayla", "brooke", "sophie", "riley", "paige", "lexi", "jenna", "sierra", "kenzie", "tori", "lauren", "sadie", "maddie", "kylie", "abby", "josie", "harper", "quinn", "nina", "tessa", "callie"},
+	Majors:  []string{"psych", "nursing", "business", "marketing", "bio", "comm", "graphic design", "english lit", "pre law", "sociology", "fashion", "education", "poli sci", "econ", "art history"},
+	Years:   []string{"freshman", "sophomore", "junior", "senior"},
+	Tonight: []string{"in bed scrolling tiktok", "half watching netflix", "procrastinating an essay", "eating cereal at midnight", "lying on the floor bored", "doing a face mask", "cant sleep again", "listening to music in the dark", "home alone, roommate is out", "painting my nails badly"},
+	Shows:   []string{"euphoria", "the office", "greys anatomy", "friends", "outer banks", "stranger things", "love island", "gilmore girls", "the summer i turned pretty", "new girl"},
+	Snacks:  []string{"takis", "cold pizza", "cereal", "oreos", "hot cheetos", "ice cream", "ramen", "goldfish"},
 }
 
 var shareLines = []string{
@@ -176,6 +202,20 @@ type director struct {
 	userAslAsk    bool // "asl?", "how old r u", "m or f", "u?"
 	userGaveAsl   bool // this message contained their age/gender
 	toldAsl       bool // we already sent our own "f 21"
+	userNameAsk   bool
+	toldName      bool
+	userInsult    bool
+	userMoney     bool
+	moneyHits     int
+	userHardQ     bool
+	userNoSnap    bool
+	userNonEng    bool
+	nonEngHits    int
+	userRepeat    bool
+	lastUserText  string
+	hookPlanted   bool
+	noQuestionAt  int // last turn that was a statement-only reply
+	rng           *rand.Rand
 	userPlace     string
 	userName      string
 	userDoing     string
@@ -194,16 +234,48 @@ type plan struct {
 func newDirector(rng *rand.Rand) *director {
 	moods := append([]string(nil), allMoods...)
 	rng.Shuffle(len(moods), func(i, j int) { moods[i], moods[j] = moods[j], moods[i] })
-	return &director{tier: tierCold, moods: moods}
+	return &director{tier: tierCold, moods: moods, rng: rng}
+}
+
+// looksNonEnglish: non-latin script, or 3+ words with none of them common english.
+func looksNonEnglish(low string) bool {
+	if nonLatinRe.MatchString(low) || foreignRe.MatchString(low) {
+		return true
+	}
+	words := strings.Fields(regexp.MustCompile(`[^a-z0-9' ]+`).ReplaceAllString(low, " "))
+	if len(words) < 2 {
+		return false
+	}
+	hits := 0
+	for _, w := range words {
+		if englishWords[w] {
+			hits++
+		}
+	}
+	return hits == 0
 }
 
 // observe scores one stranger message and updates the funnel state.
 func (d *director) observe(text string) {
 	low := strings.ToLower(strings.TrimSpace(text))
 	words := len(strings.Fields(low))
-	d.userAskedSnap = snapAskRe.MatchString(low)
+	d.userRepeat = low != "" && low == d.lastUserText && len(low) > 1
+	d.lastUserText = low
+	d.userInsult = insultRe.MatchString(low)
+	d.userMoney = moneyRe.MatchString(low)
+	if d.userMoney {
+		d.moneyHits++
+	}
+	d.userHardQ = hardQRe.MatchString(low)
+	d.userNameAsk = nameAskRe.MatchString(low)
+	d.userNoSnap = noSnapRe.MatchString(low)
+	d.userNonEng = looksNonEnglish(low)
+	if d.userNonEng {
+		d.nonEngHits++
+	}
+	d.userAskedSnap = snapAskRe.MatchString(low) && !d.userNoSnap
 	d.userQuestion = strings.Contains(low, "?") || questionRe.MatchString(low)
-	d.userHorny = hornyRe.MatchString(low)
+	d.userHorny = hornyRe.MatchString(low) && !d.userInsult
 	d.userFlirty = flirtyRe.MatchString(low)
 	d.userBye = byeRe.MatchString(low)
 	d.userBotQ = botQRe.MatchString(low)
@@ -403,6 +475,8 @@ func (d *director) plan(cfg config, turn int, userText string) plan {
 	p := plan{Mood: d.mood(turn)}
 	base := "reply to exactly what they just said"
 	switch {
+	case d.userHardQ:
+		base = "they ask something nerdy / complicated: do NOT answer it, dodge in 2-5 words like a bored college girl ('idk lol', 'google it lmao', 'bro its 1am')"
 	case d.userAslAsk:
 		base = "they ask your asl / age / gender: answer in the short app style " + d.aslAnswer(strings.Contains(userText, "from") || strings.Contains(userText, "where")) + ", nothing like 'female' or 'i am a girl'"
 	case d.userGaveAsl:
@@ -422,10 +496,38 @@ func (d *director) plan(cfg config, turn int, userText string) plan {
 		d.ended, d.endReason = true, "user left"
 		return plan{Mood: p.Mood, Instruction: "they are leaving: say bye casually, one short line, no questions", EndAfter: true, Why: "bye"}
 	}
+	if d.userInsult {
+		d.ended, d.endReason = true, "insult"
+		return plan{Mood: "teasing", Instruction: "they insulted you: one dry unbothered line like 'ok bye weirdo' or 'lol k', 2-4 words, no question.", EndAfter: true, Why: "insult -> end"}
+	}
+	if d.userNonEng {
+		if d.nonEngHits >= 2 {
+			d.ended, d.endReason = true, "not english"
+			return plan{Fixed: "english only lol, bye", EndAfter: true, Why: "non-english x2"}
+		}
+		return plan{Fixed: "english only lol", Why: "non-english"}
+	}
+	if d.userMoney {
+		if d.moneyHits >= 2 {
+			d.ended, d.endReason = true, "money talk"
+			return plan{Mood: "teasing", Instruction: "they keep talking about money / paying / selling: shut it down and leave, 'lol no im good, bye', no question.", EndAfter: true, Why: "money x2 -> end"}
+		}
+		return plan{Mood: "playful", Instruction: "they mention money / paying / onlyfans / selling: shut it down casually in one line ('lol no im not selling anything' / 'lol im not that kind of girl'), no question, do NOT mention snap.", Why: "money -> shut down"}
+	}
+	if d.userNoSnap && (d.askedSnap || d.shared) {
+		d.ended, d.endReason = true, "no snap"
+		return plan{Mood: "friendly", Instruction: "they don't have snapchat: say 'aw ok' casually, no pressure, no other app, and close it nicely in one short line. no question.", EndAfter: true, Why: "no snap -> skip"}
+	}
+	if d.userRepeat && !d.userAskedSnap {
+		return plan{Mood: "teasing", Instruction: "they sent the exact same message again: react like 'u ok lol' / 'u said that already', 3-6 words, no question.", Why: "repeat"}
+	}
 
 	// after the share -----------------------------------------------------
 	if d.shared {
 		switch {
+		case d.userNoSnap:
+			d.ended, d.endReason = true, "no snap"
+			return plan{Mood: "friendly", Instruction: "they say they don't have snapchat after all: 'aw ok' casually, no pressure, no other app, close it nicely in one short line. no question.", EndAfter: true, Why: "no snap -> skip"}
 		case d.userAskedSnap:
 			// "whats ur snap again?" -> resend the username line
 			d.sharedTurn = turn
@@ -483,6 +585,16 @@ func (d *director) plan(cfg config, turn int, userText string) plan {
 
 	// middle chat, step by step -------------------------------------------
 	switch {
+	case d.userNameAsk && !d.toldName:
+		d.toldName = true
+		p.Why = "name asked"
+		p.Instruction = base + ". they ask your name: tell your first name casually ('im <your name>' / 'its <your name> lol') and ask theirs only if u don't know it. no other question."
+	case d.userNameAsk:
+		p.Why = "name asked again"
+		p.Instruction = base + ". they ask your name again: u already said it, tease them for forgetting ('u forgot already? lol') and say it once more. no other question."
+	case d.userHardQ:
+		p.Why = "hard question -> dodge"
+		p.Instruction = base + ". they ask something nerdy / complicated: don't actually answer it, dodge like a bored college girl ('idk lol im not that deep' / 'google it lmao' / 'bro its 1am'), then flip it to something about them."
 	case d.userBotQ:
 		p.Why = "bot question"
 		p.Instruction = base + ". they ask if u are real / a bot: laugh it off in 3-6 words (like 'lol im real') and flip it back on them with one short question. never over-explain."
@@ -545,6 +657,22 @@ func (d *director) plan(cfg config, turn int, userText string) plan {
 		p.Instruction = base + ". then keep the chat going with ONE short question that fits what they said. mood: " + moodHints[p.Mood] + "."
 	}
 
+	// statement-only turns: real people don't end every text with a question.
+	// ~1 in 3 when they are carrying the chat themselves (not a question, not cold, not a special turn).
+	if (p.Why == "keep going" || p.Why == "they opened up" || p.Why == "lonely match") && !d.userQuestion && d.coldStreak == 0 && turn > 2 && d.noQuestionAt != turn-1 && turn != target-2 && d.rng.Intn(3) == 0 {
+		d.noQuestionAt = turn
+		p.Why += " (no question)"
+		p.Instruction = base + ". this time NO question at all: just react / add your own thought or a tiny joke, like a real text, and leave it there. mood: " + moodHints[p.Mood] + "."
+		return p
+	}
+
+	// plant the snap hook 2 replies before the ask, so the ask feels natural later
+	if !d.hookPlanted && turn == target-2 && !d.userHorny && !d.userPicAsk && !d.userAslAsk && !d.userGaveAsl {
+		d.hookPlanted = true
+		p.Why += " + snap hook"
+		p.Instruction += " also slip in naturally that u are basically always on snap / u post dumb stories there (ONE mention, do NOT ask for their snap, no username)."
+	}
+
 	// double lines: when it buys engagement, never twice in a row, never on reply 1
 	wantDouble := false
 	switch {
@@ -600,6 +728,12 @@ func replyProblem(lines []string, d *director, userText string, history []messag
 		return "did not answer their question, only asked back"
 	}
 	joined := strings.ToLower(strings.Join(lines, " "))
+	if aiPhraseRe.MatchString(joined) {
+		return "sounds like an ai/customer-service bot (" + aiPhraseRe.FindString(joined) + ")"
+	}
+	if g := parrotGram(strings.ToLower(userText), joined); g != "" {
+		return "parroted their own words back (\"" + g + "\")"
+	}
 	if (d.userGaveAsl || d.userAslAsk) && d.userAge > 0 && d.userGender != "" && regexp.MustCompile(`\b(u|you|hbu|wbu|and u|n u|urs|yours)\s*\?`).MatchString(joined) {
 		return "asked 'u?' although they already gave their age/gender"
 	}
@@ -633,6 +767,12 @@ func replyProblem(lines []string, d *director, userText string, history []messag
 type session struct {
 	Age      int
 	Country  string
+	Name     string
+	Major    string
+	Year     string
+	Tonight  string
+	Show     string
+	Snack    string
 	System   string
 	History  []message
 	Turns    int
@@ -645,8 +785,14 @@ func newSession(cfg config, personaTemplate string, rng *rand.Rand) *session {
 		Country:  cfg.Countries[rng.Intn(len(cfg.Countries))],
 		Director: newDirector(rng),
 	}
+	pick := func(xs []string) string { return xs[rng.Intn(len(xs))] }
+	s.Name, s.Major, s.Year = pick(lorePool.Names), pick(lorePool.Majors), pick(lorePool.Years)
+	s.Tonight, s.Show, s.Snack = pick(lorePool.Tonight), pick(lorePool.Shows), pick(lorePool.Snacks)
 	sys := strings.ReplaceAll(personaTemplate, "{age}", strconv.Itoa(s.Age))
 	sys = strings.ReplaceAll(sys, "{country}", s.Country)
+	for k, v := range map[string]string{"{name}": s.Name, "{major}": s.Major, "{year}": s.Year, "{tonight}": s.Tonight, "{show}": s.Show, "{snack}": s.Snack} {
+		sys = strings.ReplaceAll(sys, k, v)
+	}
 	s.System = sys
 	return s
 }
@@ -693,16 +839,183 @@ func main() {
 		ping(cfg)
 	case "chat":
 		chatLoop(cfg, personaTemplate)
+	case "scenario", "scenarios", "run":
+		name := ""
+		if len(os.Args) > 2 {
+			name = strings.ToLower(os.Args[2])
+		}
+		scenarioRun(cfg, personaTemplate, name)
 	default:
-		fmt.Println("usage: apitest.exe [chat|ping]")
+		fmt.Println("usage: apitest.exe [chat|ping|scenario <name|all>]")
 		os.Exit(2)
 	}
 }
 
+type stats struct {
+	Replies, Lines, Words, Retries, Warns, Doubles int
+	PromptTok, ComplTok                            int
+	Seconds                                        float64
+	ShareTurn                                      int
+}
+
+type runner struct {
+	cfg     config
+	persona string
+	rng     *rand.Rand
+	s       *session
+	st      stats
+	logf    *os.File
+}
+
+func newRunner(cfg config, personaTemplate string) *runner {
+	r := &runner{cfg: cfg, persona: personaTemplate, rng: rand.New(rand.NewSource(time.Now().UnixNano()))}
+	r.s = newSession(cfg, personaTemplate, r.rng)
+	if f, err := os.OpenFile(filepath.Join(exeDir(), "apitest.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644); err == nil {
+		r.logf = f
+	}
+	r.logLine("=== new chat %s | model %s | persona f %d %s name %s ===", time.Now().Format("2006-01-02 15:04:05"), cfg.Model, r.s.Age, r.s.Country, r.s.Name)
+	return r
+}
+
+func (r *runner) logLine(format string, a ...any) {
+	if r.logf != nil {
+		fmt.Fprintf(r.logf, format+"\n", a...)
+	}
+}
+
+func (r *runner) reset() {
+	r.summary()
+	r.s = newSession(r.cfg, r.persona, r.rng)
+	r.st = stats{}
+	r.logLine("=== new chat %s | persona f %d %s name %s ===", time.Now().Format("15:04:05"), r.s.Age, r.s.Country, r.s.Name)
+}
+
+func (r *runner) summary() {
+	if r.st.Replies == 0 {
+		return
+	}
+	share := "not shared"
+	if r.st.ShareTurn > 0 {
+		share = fmt.Sprintf("shared on reply %d", r.st.ShareTurn)
+	}
+	avgW := float64(r.st.Words) / float64(max(r.st.Lines, 1))
+	line := fmt.Sprintf("--- summary: %d replies | %s | tier %s | retries %d | warns %d | doubles %d | avg %.1f words/line | %.1fs avg | %d+%d tokens | %s ---",
+		r.st.Replies, share, r.s.Director.tier, r.st.Retries, r.st.Warns, r.st.Doubles, avgW, r.st.Seconds/float64(r.st.Replies), r.st.PromptTok, r.st.ComplTok, r.s.Director.status(r.cfg, r.s.Turns+1))
+	fmt.Println(line)
+	r.logLine("%s", line)
+}
+
+// step handles one stranger message end to end and prints the bot reply.
+func (r *runner) step(text string) {
+	s, cfg, d := r.s, r.cfg, r.s.Director
+	if d.ended {
+		fmt.Println("     (chat ended: " + d.endReason + " — the bot would not reply anymore. /new for a new stranger)")
+		return
+	}
+	d.observe(text)
+	turn := s.Turns + 1
+	p := d.plan(cfg, turn, text)
+	s.History = append(s.History, message{Role: "user", Content: text})
+	r.logLine("you> %s", text)
+
+	var lines []string
+	info := ""
+	took := 0.0
+	retries := 0
+	if p.Fixed != "" {
+		lines = []string{p.Fixed}
+	} else {
+		msgs := buildMessages(s, cfg, p, turn)
+		if cfg.ShowPrompt {
+			fmt.Println("--- request messages ---")
+			for _, m := range msgs {
+				fmt.Printf("[%s] %s\n", m.Role, m.Content)
+			}
+			fmt.Println("------------------------")
+		}
+		start := time.Now()
+		reply, ci, err := complete(cfg, msgs)
+		took = time.Since(start).Seconds()
+		info = ci.Text
+		r.st.PromptTok += ci.Prompt
+		r.st.ComplTok += ci.Compl
+		if err != nil {
+			fmt.Printf("eva> (no reply)\n     ERROR after %.1fs: %v\n", took, err)
+			fmt.Printf("     plan was: mood=%s double=%v share=%v | %s\n", p.Mood, p.Double, p.ShareNow, p.Instruction)
+			r.logLine("ERROR: %v", err)
+			return
+		}
+		var warn string
+		lines, warn = sanitizeLines(reply, p.Double)
+		if warn != "" {
+			r.st.Warns++
+			fmt.Printf("     WARN: %s\n     raw: %q\n", warn, strings.TrimSpace(reply))
+			r.logLine("WARN: %s | raw %q", warn, strings.TrimSpace(reply))
+		}
+		if problem := replyProblem(lines, d, text, s.History); problem != "" {
+			retries++
+			r.st.Retries++
+			fmt.Printf("     RETRY: %s -> asking the model once more\n     first try: %q\n", problem, strings.Join(lines, " / "))
+			r.logLine("RETRY: %s | first try %q", problem, strings.Join(lines, " / "))
+			fix := fmt.Sprintf("your previous draft was rejected: %s. rewrite it. their message was: %q. answer it first, keep the same mood and format, say something new.", problem, text)
+			msgs = append(msgs, message{Role: "system", Content: fix})
+			start2 := time.Now()
+			reply2, ci2, err2 := complete(cfg, msgs)
+			took += time.Since(start2).Seconds()
+			r.st.PromptTok += ci2.Prompt
+			r.st.ComplTok += ci2.Compl
+			if err2 == nil {
+				info = ci2.Text
+				lines, warn = sanitizeLines(reply2, p.Double)
+				if warn != "" {
+					fmt.Printf("     WARN: %s\n     raw: %q\n", warn, strings.TrimSpace(reply2))
+				}
+				if problem2 := replyProblem(lines, d, text, s.History); problem2 != "" {
+					fmt.Printf("     STILL: %s (kept anyway — the real bot would fall back to a TXT line)\n", problem2)
+					r.logLine("STILL: %s", problem2)
+				}
+			}
+		}
+		lines = polish(lines, s.History)
+	}
+	if p.ShareNow {
+		user := cfg.SnapUsername
+		if user == "" {
+			user = "yoursnapname"
+		}
+		lines = append(lines, strings.ReplaceAll(shareLines[r.rng.Intn(len(shareLines))], "%username%", user))
+		if r.st.ShareTurn == 0 {
+			r.st.ShareTurn = turn
+		}
+	}
+	for _, line := range lines {
+		fmt.Printf("eva> %s\n", line)
+		s.History = append(s.History, message{Role: "assistant", Content: line})
+		r.st.Lines++
+		r.st.Words += len(strings.Fields(line))
+		r.logLine("eva> %s", line)
+	}
+	s.Turns++
+	r.st.Replies++
+	r.st.Seconds += took
+	if p.Double {
+		r.st.Doubles++
+	}
+	status := fmt.Sprintf("[%.1fs%s] reply %d | mood %s | %s | %s", took, info, turn, p.Mood, p.Why, d.status(cfg, turn+1))
+	if p.Double {
+		status += " | double"
+	}
+	if p.EndAfter {
+		status += " | END"
+	}
+	fmt.Println("     " + status)
+	r.logLine("     %s", status)
+}
+
 func chatLoop(cfg config, personaTemplate string) {
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	s := newSession(cfg, personaTemplate, rng)
-	printBanner(cfg, s)
+	r := newRunner(cfg, personaTemplate)
+	defer r.summary()
+	printBanner(cfg, r.s)
 
 	in := bufio.NewScanner(os.Stdin)
 	in.Buffer(make([]byte, 0, 64*1024), 64*1024)
@@ -715,140 +1028,144 @@ func chatLoop(cfg config, personaTemplate string) {
 		if text == "" {
 			continue
 		}
+		s := r.s
 		switch strings.ToLower(text) {
 		case "/quit", "/exit", "/q":
 			return
 		case "/new":
-			s = newSession(cfg, personaTemplate, rng)
-			fmt.Printf("--- new chat: persona f %d from %s | moods: %s ---\n", s.Age, s.Country, strings.Join(s.Director.moods, " > "))
+			r.reset()
+			fmt.Printf("--- new chat: persona f %d from %s (%s) | moods: %s ---\n", r.s.Age, r.s.Country, r.s.Name, strings.Join(r.s.Director.moods, " > "))
 			continue
 		case "/prompt":
-			cfg.ShowPrompt = !cfg.ShowPrompt
-			fmt.Printf("--- show prompt: %v ---\n", cfg.ShowPrompt)
+			r.cfg.ShowPrompt = !r.cfg.ShowPrompt
+			fmt.Printf("--- show prompt: %v ---\n", r.cfg.ShowPrompt)
 			continue
 		case "/system":
 			fmt.Println("--- system prompt ---\n" + s.System + "\n---------------------")
 			continue
 		case "/state":
 			facts, _ := s.Director.known()
-			fmt.Printf("--- %s | knows: %q | horny %d flirty %d | turn %d ---\n", s.Director.status(cfg, s.Turns+1), facts, s.Director.hornyHits, s.Director.flirtyHits, s.Turns)
+			fmt.Printf("--- %s | knows: %q | horny %d flirty %d | turn %d | me: %s, %s %s, %s ---\n", s.Director.status(cfg, s.Turns+1), facts, s.Director.hornyHits, s.Director.flirtyHits, s.Turns, s.Name, s.Year, s.Major, s.Tonight)
 			continue
 		case "/history":
 			for i, m := range s.History {
 				fmt.Printf("%2d %-9s %s\n", i+1, m.Role+":", m.Content)
 			}
 			continue
+		case "/summary":
+			r.summary()
+			continue
 		case "/help":
 			printHelp()
 			continue
 		}
+		r.step(text)
+	}
+}
 
-		if s.Director.ended {
-			fmt.Println("     (chat ended: " + s.Director.endReason + " — the bot would not reply anymore. /new for a new stranger)")
+// scenarioRun feeds scripted stranger lines (scenarios.txt) through the same pipeline.
+func scenarioRun(cfg config, personaTemplate string, name string) {
+	scen, err := loadScenarios(filepath.Join(exeDir(), "scenarios.txt"))
+	if err != nil {
+		fatal(err)
+	}
+	var names []string
+	if name == "" || name == "all" {
+		for n := range scen {
+			names = append(names, n)
+		}
+		sort.Strings(names)
+	} else {
+		if _, ok := scen[name]; !ok {
+			var have []string
+			for n := range scen {
+				have = append(have, n)
+			}
+			sort.Strings(have)
+			fatal(fmt.Errorf("scenario %q not in scenarios.txt (have: %s)", name, strings.Join(have, ", ")))
+		}
+		names = []string{name}
+	}
+	r := newRunner(cfg, personaTemplate)
+	for i, n := range names {
+		if i > 0 {
+			r.reset()
+		}
+		fmt.Printf("\n################ scenario: %s  (persona f %d %s, name %s) ################\n", n, r.s.Age, r.s.Country, r.s.Name)
+		r.logLine("### scenario %s", n)
+		for _, line := range scen[n] {
+			if r.s.Director.ended {
+				fmt.Printf("you> %s\n     (chat already ended: %s)\n", line, r.s.Director.endReason)
+				break
+			}
+			fmt.Printf("you> %s\n", line)
+			r.step(line)
+		}
+	}
+	r.summary()
+	fmt.Println("\n(full transcript appended to apitest.log — send that file for review)")
+}
+
+func loadScenarios(path string) (map[string][]string, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("scenarios.txt missing next to apitest.exe: %w", err)
+	}
+	out := map[string][]string{}
+	cur := ""
+	for _, raw := range strings.Split(string(b), "\n") {
+		l := strings.TrimSpace(raw)
+		if l == "" || strings.HasPrefix(l, "#") {
 			continue
 		}
-
-		d := s.Director
-		d.observe(text)
-		turn := s.Turns + 1
-		p := d.plan(cfg, turn, text)
-		s.History = append(s.History, message{Role: "user", Content: text})
-
-		var lines []string
-		info := ""
-		took := 0.0
-		if p.Fixed != "" {
-			lines = []string{p.Fixed}
-		} else {
-			msgs := buildMessages(s, cfg, p, turn)
-			if cfg.ShowPrompt {
-				fmt.Println("--- request messages ---")
-				for _, m := range msgs {
-					fmt.Printf("[%s] %s\n", m.Role, m.Content)
-				}
-				fmt.Println("------------------------")
-			}
-			start := time.Now()
-			reply, callInfo, err := complete(cfg, msgs)
-			took = time.Since(start).Seconds()
-			info = callInfo
-			if err != nil {
-				fmt.Printf("eva> (no reply)\n     ERROR after %.1fs: %v\n", took, err)
-				fmt.Printf("     plan was: mood=%s double=%v share=%v | %s\n", p.Mood, p.Double, p.ShareNow, p.Instruction)
-				continue
-			}
-			var warn string
-			lines, warn = sanitizeLines(reply, p.Double)
-			if warn != "" {
-				fmt.Printf("     WARN: %s\n     raw: %q\n", warn, strings.TrimSpace(reply))
-			}
-			if problem := replyProblem(lines, d, text, s.History); problem != "" {
-				fmt.Printf("     RETRY: %s -> asking the model once more\n     first try: %q\n", problem, strings.Join(lines, " / "))
-				fix := fmt.Sprintf("your previous draft was rejected: %s. rewrite it. their message was: %q. answer it first, keep the same mood and format, say something new.", problem, text)
-				msgs = append(msgs, message{Role: "system", Content: fix})
-				start2 := time.Now()
-				reply2, info2, err2 := complete(cfg, msgs)
-				took += time.Since(start2).Seconds()
-				if err2 == nil {
-					info = info2
-					lines, warn = sanitizeLines(reply2, p.Double)
-					if warn != "" {
-						fmt.Printf("     WARN: %s\n     raw: %q\n", warn, strings.TrimSpace(reply2))
-					}
-				}
-			}
+		if strings.HasPrefix(l, "[") && strings.HasSuffix(l, "]") {
+			cur = strings.ToLower(strings.TrimSpace(l[1 : len(l)-1]))
+			continue
 		}
-		if p.ShareNow {
-			user := cfg.SnapUsername
-			if user == "" {
-				user = "yoursnapname"
-			}
-			lines = append(lines, strings.ReplaceAll(shareLines[rng.Intn(len(shareLines))], "%username%", user))
+		if cur != "" {
+			out[cur] = append(out[cur], l)
 		}
-		for _, line := range lines {
-			fmt.Printf("eva> %s\n", line)
-			s.History = append(s.History, message{Role: "assistant", Content: line})
-		}
-		s.Turns++
-		fmt.Printf("     [%.1fs%s] reply %d | mood %s | %s | %s", took, info, turn, p.Mood, p.Why, d.status(cfg, turn+1))
-		if p.Double {
-			fmt.Print(" | double")
-		}
-		if p.EndAfter {
-			fmt.Print(" | END")
-		}
-		fmt.Println()
 	}
+	if len(out) == 0 {
+		return nil, errors.New("scenarios.txt has no [sections]")
+	}
+	return out, nil
 }
 
 // ---------------------------------------------------------------- API ---
 
-func complete(cfg config, msgs []message) (string, string, error) {
+type callInfo struct {
+	Text          string
+	Prompt, Compl int
+}
+
+func complete(cfg config, msgs []message) (string, callInfo, error) {
+	var ci callInfo
 	status, body, err := rawCall(cfg, msgs, cfg.MaxTokens)
 	if err != nil {
-		return "", "", err
+		return "", ci, err
 	}
 	var parsed chatResponse
 	if jsonErr := json.Unmarshal(body, &parsed); jsonErr != nil {
-		return "", "", fmt.Errorf("HTTP %d, non-JSON body: %s", status, trim(string(body), 300))
+		return "", ci, fmt.Errorf("HTTP %d, non-JSON body: %s", status, trim(string(body), 300))
 	}
 	if status >= 400 {
 		msg := trim(string(body), 300)
 		if parsed.Error != nil && parsed.Error.Message != "" {
 			msg = parsed.Error.Message
 		}
-		return "", "", fmt.Errorf("HTTP %d: %s", status, msg)
+		return "", ci, fmt.Errorf("HTTP %d: %s", status, msg)
 	}
 	if len(parsed.Choices) == 0 {
-		return "", "", errors.New("no choices in response")
+		return "", ci, errors.New("no choices in response")
 	}
-	info := ""
 	if parsed.Usage != nil {
-		info = fmt.Sprintf(", %d+%d tok", parsed.Usage.PromptTokens, parsed.Usage.CompletionTokens)
+		ci.Prompt, ci.Compl = parsed.Usage.PromptTokens, parsed.Usage.CompletionTokens
+		ci.Text = fmt.Sprintf(", %d+%d tok", ci.Prompt, ci.Compl)
 	}
 	choice := parsed.Choices[0]
 	if fr := choice.FinishReason; fr != "" && fr != "stop" {
-		info += ", finish=" + fr
+		ci.Text += ", finish=" + fr
 	}
 	content := choice.Message.Content
 	if strings.TrimSpace(thinkRe.ReplaceAllString(content, "")) == "" {
@@ -861,9 +1178,9 @@ func complete(cfg config, msgs []message) (string, string, error) {
 			hint += fmt.Sprintf(" (reasoning %d chars: %q)", len(reasoning), trim(reasoning, 160))
 		}
 		hint += "\n     FIX: raise MAX_TOKENS (e.g. 1024) or disable thinking with EXTRA_JSON in apitest.config.txt, or use a non-reasoning model (e.g. meta-llama/Llama-3.3-70B-Instruct)"
-		return "", "", errors.New(hint)
+		return "", ci, errors.New(hint)
 	}
-	return content, info, nil
+	return content, ci, nil
 }
 
 func rawCall(cfg config, msgs []message, maxTokens int) (int, []byte, error) {
@@ -965,6 +1282,12 @@ func sanitizeLines(raw string, double bool) ([]string, string) {
 				l = strings.TrimSpace(l[len(prefix):])
 			}
 		}
+		l = strings.ReplaceAll(l, "—", ", ")
+		l = strings.ReplaceAll(l, " - ", ", ")
+		l = strings.Join(strings.Fields(l), " ")
+		l = strings.ReplaceAll(l, "!", "")
+		l = trailingDotRe.ReplaceAllString(l, " $1")
+		l = strings.TrimRight(strings.Join(strings.Fields(l), " "), ".!, ")
 		if l != "" {
 			lines = append(lines, strings.ToLower(l))
 		}
@@ -995,6 +1318,91 @@ func sanitizeLines(raw string, double bool) ([]string, string) {
 		}
 	}
 	return lines, strings.Join(warns, "; ")
+}
+
+// parrotGram returns a 4-word run of the stranger's message that appears verbatim in the reply.
+func parrotGram(user, reply string) string {
+	clean := func(t string) []string {
+		return strings.Fields(regexp.MustCompile(`[^a-z0-9' ]+`).ReplaceAllString(t, " "))
+	}
+	uw := clean(user)
+	rw := " " + strings.Join(clean(reply), " ") + " "
+	for i := 0; i+4 <= len(uw); i++ {
+		g := strings.Join(uw[i:i+4], " ")
+		if strings.Contains(rw, " "+g+" ") {
+			return g
+		}
+	}
+	return ""
+}
+
+// polish removes bot-tells that are easier to fix than to retry:
+// same emoji twice, emoji in two of the last three replies, "lol"/"haha" opener two replies in a row.
+func polish(lines []string, history []message) []string {
+	var recent []string
+	for i := len(history) - 1; i >= 0 && len(recent) < 3; i-- {
+		if history[i].Role == "assistant" {
+			recent = append(recent, history[i].Content)
+		}
+	}
+	recentEmoji := false
+	usedEmoji := map[rune]bool{}
+	for _, m := range history {
+		if m.Role == "assistant" {
+			for _, r := range m.Content {
+				if isEmoji(r) {
+					usedEmoji[r] = true
+				}
+			}
+		}
+	}
+	for _, r := range recent {
+		for _, c := range r {
+			if isEmoji(c) {
+				recentEmoji = true
+			}
+		}
+	}
+	lastOpeners := map[string]bool{}
+	for i, r := range recent {
+		if i > 1 {
+			break
+		}
+		if f := strings.Fields(r); len(f) > 0 {
+			if w := strings.Trim(f[0], ",."); w == "lol" || w == "haha" || w == "lmao" || w == "omg" {
+				lastOpeners[w] = true
+			}
+		}
+	}
+	out := make([]string, 0, len(lines))
+	for _, l := range lines {
+		var b strings.Builder
+		kept := false
+		for _, c := range l {
+			if isEmoji(c) {
+				if recentEmoji || usedEmoji[c] || kept {
+					continue
+				}
+				kept = true
+			}
+			b.WriteRune(c)
+		}
+		l = strings.TrimRight(strings.TrimSpace(strings.Join(strings.Fields(b.String()), " ")), ".,! ")
+		if f := strings.Fields(l); len(f) > 1 && lastOpeners[strings.Trim(f[0], ",.")] {
+			l = strings.TrimSpace(strings.TrimLeft(strings.Join(f[1:], " "), ", "))
+		}
+		if l != "" {
+			out = append(out, l)
+		}
+	}
+	if len(out) == 0 {
+		return lines
+	}
+	return out
+}
+
+func isEmoji(r rune) bool {
+	return r >= 0x1F300 && r <= 0x1FAFF || r >= 0x2600 && r <= 0x27BF || r == 0x2764 || r == 0xFE0F
 }
 
 func genderAge(low string) (string, int, bool) {
@@ -1162,7 +1570,7 @@ func printBanner(cfg config, s *session) {
 	fmt.Println("==========================================================")
 	fmt.Println(" apitest - chat with the AI persona (you are the stranger)")
 	fmt.Printf(" api:     %s\n model:   %s\n", cfg.BaseURL, cfg.Model)
-	fmt.Printf(" persona: f %d from %s   (persona.txt, /new = re-roll)\n", s.Age, s.Country)
+	fmt.Printf(" persona: f %d from %s, name %s (only told if asked)   (persona.txt, /new = re-roll)\n", s.Age, s.Country, s.Name)
 	fmt.Printf(" snap at: HOT reply %d | WARM %d | COLD %d   username: %s\n", cfg.ShareHot, cfg.ShareWarm, cfg.ShareCold, orDefault(cfg.SnapUsername, "(set SNAP_USERNAME)"))
 	fmt.Printf(" moods:   %s\n", strings.Join(s.Director.moods, " > "))
 	fmt.Println(" type a message, or /help for commands")
@@ -1175,6 +1583,7 @@ func printHelp() {
 	fmt.Println(" /system   show the current system prompt")
 	fmt.Println(" /prompt   toggle printing the full request (incl. director note) before each call")
 	fmt.Println(" /history  show the conversation memory sent to the model")
+	fmt.Println(" /summary  stats of this chat so far (retries, tokens, share turn)")
 	fmt.Println(" /quit     exit")
 }
 

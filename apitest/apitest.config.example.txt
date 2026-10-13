@@ -13,6 +13,10 @@ SHARE_HOT=4
 SHARE_WARM=6
 SHARE_COLD=8
 
+# when the stranger says he has no snapchat: empty = just close the chat politely (current rule).
+# reserved for later, e.g. FALLBACK_PLATFORM=telegram (not implemented yet)
+FALLBACK_PLATFORM=
+
 # other providers:
 #   OpenAI      BASE_URL=https://api.openai.com/v1                                 MODEL=gpt-4o-mini
 #   Groq        BASE_URL=https://api.groq.com/openai/v1                            MODEL=llama-3.3-70b-versatile

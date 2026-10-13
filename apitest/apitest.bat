@@ -2,6 +2,7 @@
 REM apitest.bat — build + run the standalone API chat tester (separate from the bot code)
 REM   apitest.bat          chat with the AI persona
 REM   apitest.bat ping     one raw request (is the API / key / model OK?)
+REM   apitest.bat scenario horny|warm|cold|asl|tricky|all   scripted stranger (scenarios.txt)
 setlocal
 cd /d "%~dp0"
 set "PATH=%ProgramFiles%\Go\bin;%LOCALAPPDATA%\Programs\Go\bin;%USERPROFILE%\go\bin;%PATH%"

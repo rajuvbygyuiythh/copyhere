@@ -150,6 +150,49 @@ reply-quality check rejects it and asks the model once more
 (`RETRY: asked 'u?' although they already gave their age/gender`).
 `/state` shows what she currently knows.
 
+## 6c. Her own life ("lore") — fixed per chat
+
+Random per chat, written into the system prompt so she never contradicts
+herself: **name** (usa pool: emma, mia, chloe, hailey …), year + major
+(sophomore, psych …), what she's doing tonight, a show, a snack.
+Rule: the **name is said only when the stranger asks** (`whats ur name`, `who r u`)
+— never volunteered, never signed. Asked twice → "u forgot already? lol".
+`/state` shows the current lore.
+
+## 6d. Anti bot-tells
+
+| tell | fix |
+|---|---|
+| a question in every single text | ~1 of 3 "keep going" turns is statement-only (no question), never two in a row, never on hook/ask/share turns |
+| perfect punctuation | guard strips `!`, trailing `.`/`,`, em-dashes; everything lowercase |
+| customer-service / ai words (absolutely, feel free, sounds like you, i'd love to, tell me more, definitely, boundaries …) | rejected → 1 retry |
+| echoing the stranger's words | any 4-word run of his message inside her reply → rejected → 1 retry |
+| same emoji again / emoji in two of the last three replies | emoji removed silently |
+| "lol …" / "haha …" opener two replies in a row | opener removed silently |
+| answering nerdy questions (math, politics, code, "explain …") | "idk lol im not that deep" dodge, flip back to him |
+| contradicting her own story | fixed lore (6c) |
+| insults | one dry line ("ok bye weirdo"), END |
+| money / paying / onlyfans / selling | "lol no im not selling anything" (no snap mention); 2nd time → END |
+| spam (same message twice) | "u ok lol", no question |
+| not english (non-latin script, hola/que tal/kya/kemon …, or 2+ words with no english) | fixed "english only lol"; 2nd time → "english only lol, bye", END |
+| "i dont have snap" (before or after the share) | "aw ok", no other app, END — `FALLBACK_PLATFORM=` reserved for telegram later |
+
+## 6e. Snap hook
+
+Two replies before the ask she drops ONE natural mention ("im literally always
+on snap lol" / "i post dumb stories there") with no question — so "u got snap?"
+on the next-but-one reply feels like a continuation, not a pitch.
+
+## 6f. Testing tools
+
+* `apitest.bat scenario horny|warm|cold|asl|tricky|rude|noeng|money|all` —
+  plays the scripted stranger from `scenarios.txt` through the real API and
+  prints a summary (share reply, retries, warns, doubles, avg words, tokens).
+  Edit `scenarios.txt` to add your own.
+* `apitest.log` next to the exe keeps every chat (user line, bot lines, plan
+  reason, WARN/RETRY) — send it for review.
+* `/summary` in chat mode shows the same stats for the current chat.
+
 ## 7. Output guard (what the real bot would do)
 
 lowercase, first 1–2 lines only, strip quotes/"you:"/list markers and
