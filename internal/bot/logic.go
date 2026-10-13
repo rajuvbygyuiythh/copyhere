@@ -1165,16 +1165,44 @@ func executeMatchEVAChat(
 	// replies (waitingForUserOpener). A silent user is skipped. When the bot
 	// does open, it waits a human delay first instead of firing instantly.
 	waitingForUserOpener := false
+	var earlyIncoming *model.Message
 	if !session.Started && !session.Ended {
-		if cfg.pace.botOpensFirst() {
+		botOpens := cfg.pace.botOpensFirst()
+		if botOpens {
 			if delay := cfg.pace.botOpenDelay(); delay > 0 {
 				logf(cfg, "[pacing] Bot opens this match: waiting %s before the opener.\n", delay.Truncate(time.Second))
-				select {
-				case <-ctx.Done():
-					return true, ctx.Err()
-				case <-time.After(delay):
+				delayTimer := time.NewTimer(delay)
+			delayLoop:
+				for {
+					select {
+					case <-ctx.Done():
+						delayTimer.Stop()
+						return true, ctx.Err()
+					case <-delayTimer.C:
+						break delayLoop
+					case event := <-realtimeEvents:
+						if event.ConversationID != target.ConversationID {
+							continue
+						}
+						if event.Type == "matchUpdate" && event.Closed {
+							delayTimer.Stop()
+							logf(cfg, "[evachat] Conversation closed by %s before the opener. Finding new match.\n", event.ClosedBy)
+							return true, nil
+						}
+						if event.Type == "chatMessage" && event.UserID == target.UserID {
+							// the user beat us to it: reply instead of opening
+							delayTimer.Stop()
+							msg := model.Message{ID: event.MessageID, Content: event.Content, CreatedAt: event.CreatedAt}
+							msg.Author.ID = event.UserID
+							earlyIncoming = &msg
+							botOpens = false
+							break delayLoop
+						}
+					}
 				}
 			}
+		}
+		if botOpens {
 			result := evaChatStart(cfg, &accountState, target.UserID, rng)
 			if result.Text == "" {
 				return true, fmt.Errorf("EVAChat opener unavailable: %s", result.Reason)
@@ -1202,6 +1230,7 @@ func executeMatchEVAChat(
 			accountState.SentMessageCounts[target.UserID] = sentCount
 			accountState.BaselineDone[target.UserID] = true
 			accountState.BotFirstCount++
+			cfg.pace.noteChat()
 			state[accountKey] = accountState
 			if err := store.SaveJSON(p.BotState, state); err != nil {
 				return true, err
@@ -1229,9 +1258,22 @@ func executeMatchEVAChat(
 		replyTimer := time.NewTimer(replyTimeout)
 		var incoming model.Message
 		chatActive := true
+		gotIncoming := false
+		if earlyIncoming != nil {
+			// message received while the bot was still "deciding" to open
+			replyTimer.Stop()
+			incoming = *earlyIncoming
+			earlyIncoming = nil
+			gotIncoming = true
+			waitingForUserOpener = false
+			accountState.UserFirstCount++
+			cfg.pace.noteChat()
+			logReceiveActivity(cfg, currentUserID, target, incoming.Content)
+			logf(cfg, "[pacing] %s opened the chat first. Replying.\n", target.Username)
+		}
 
 	waitLoop:
-		for {
+		for !gotIncoming {
 			select {
 			case <-ctx.Done():
 				replyTimer.Stop()
@@ -1258,6 +1300,7 @@ func executeMatchEVAChat(
 					if waitingForUserOpener {
 						waitingForUserOpener = false
 						accountState.UserFirstCount++
+						cfg.pace.noteChat()
 						logf(cfg, "[pacing] %s opened the chat. Replying.\n", target.Username)
 					}
 					break waitLoop

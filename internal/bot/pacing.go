@@ -42,6 +42,13 @@ type Pacing struct {
 // errRateLimited is returned by API helpers when the platform answers 429.
 var errRateLimited = errors.New("rate limited by platform")
 
+// Human pause between two consecutive matches (a person does not hit
+// "next" the same millisecond a chat ends).
+const (
+	matchGapMin = 5 * time.Second
+	matchGapMax = 20 * time.Second
+)
+
 // Worker phases exported to the dashboard / Live Wall.
 const (
 	PhaseActive  = "active"

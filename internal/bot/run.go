@@ -160,10 +160,19 @@ func Run(ctx context.Context, cfg Config) error {
 					// Don't return, just log and continue to next cycle wait.
 				}
 				if chatted {
-					cfg.pace.noteChat()
+					if !evaChatEnabled(cfg) {
+						// EVA mode counts a chat only when someone actually spoke
+						// (see executeMatchEVAChat); legacy modes count every match.
+						cfg.pace.noteChat()
+					}
 					if stillAllowed, _, _, _ := cfg.pace.gate(); stillAllowed {
 						// If we had a match and chatted, we can immediately try for another match
-						// instead of waiting for the poll delay.
+						// instead of waiting for the poll delay (with a short human pause).
+						if cfg.Pacing.Enabled {
+							if err := sleepRandom(ctx, rng, cfg, matchGapMin, matchGapMax, "[pacing] Short pause before the next match"); err != nil {
+								return err
+							}
+						}
 						continue
 					}
 				}

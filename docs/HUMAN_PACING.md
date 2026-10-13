@@ -13,6 +13,12 @@ plus small hooks, three behaviours:
 | **Hourly chat budget** per account | 30 matched chats / rolling hour | `pacer` |
 | **Platform limit (HTTP 429)** → cooldown instead of counting towards "dead" | 20 min + up to 50 % jitter | `match()`, EVA sends, `registry.go` |
 | **Human reply delay** when the dashboard reply delay is 0 | 1.5 s + 55 ms/char (cap 9 s) + jitter | `humanReplyDelay` |
+| **Pause between matches** (instead of "next" the same millisecond) | 5–20 s | `run.go` |
+
+Details: while the bot is still "deciding" to open (opener delay) it keeps
+listening — if the user writes first the bot replies instead of opening, and a
+closed conversation is abandoned. The hourly budget counts a chat only when
+someone actually spoke (silent-user skips do not burn budget).
 
 Everything lives in `internal/bot/pacing.go`; `Pacing` is copied from
 `GeneralSettings` in `app.go` (`pacingFromSettings`). Turning the Setting-tab

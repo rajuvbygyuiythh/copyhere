@@ -201,11 +201,7 @@ func (a *App) homeStats(
 		return model.HomeStats{}, err
 	}
 
-	messagesSent, trafficUsers, snapTgSentCount, skippedAccounts, err := a.countSentMessages()
-	if err != nil {
-		return model.HomeStats{}, err
-	}
-	userFirst, botFirst, err := a.countOpeners()
+	counters, err := a.countStateCounters()
 	if err != nil {
 		return model.HomeStats{}, err
 	}
@@ -220,41 +216,20 @@ func (a *App) homeStats(
 		RunningAccounts: runningAccounts,
 		UserSendCount:   len(messageSettings.UsernameLines()),
 		DeadAccounts:    accountCounts.Dead,
-		TrafficUsers:    trafficUsers,
-		MessagesSent:    messagesSent,
-		SnapTgSentCount: snapTgSentCount,
-		SkippedAccounts: skippedAccounts,
-		UserFirstCount:  userFirst,
-		BotFirstCount:   botFirst,
+		TrafficUsers:    counters.TrafficUsers,
+		MessagesSent:    counters.MessagesSent,
+		SnapTgSentCount: counters.SnapTgSentCount,
+		SkippedAccounts: counters.SkippedAccounts,
+		UserFirstCount:  counters.UserFirstCount,
+		BotFirstCount:   counters.BotFirstCount,
 		RestingAccounts: bot.RestingWorkerCount(),
 	}, nil
-}
-
-// countOpeners sums who-spoke-first counters across all profile states.
-func (a *App) countOpeners() (int, int, error) {
-	statePaths, err := filepath.Glob(filepath.Join(a.dataDir, "profiles", "*", "bot_state.json"))
-	if err != nil {
-		return 0, 0, err
-	}
-	userFirst, botFirst := 0, 0
-	for _, statePath := range statePaths {
-		var state model.BotState
-		ok, err := store.LoadJSON(statePath, &state)
-		if err != nil || !ok {
-			continue
-		}
-		for _, accountState := range state {
-			userFirst += accountState.UserFirstCount
-			botFirst += accountState.BotFirstCount
-		}
-	}
-	return userFirst, botFirst, nil
 }
 
 func pacingFromSettings(g model.GeneralSettings) bot.Pacing {
 	g.ApplyPacingDefaults()
 	sec := func(v int) time.Duration { return time.Duration(v) * time.Second }
-	min := func(v int) time.Duration { return time.Duration(v) * time.Minute }
+	mins := func(v int) time.Duration { return time.Duration(v) * time.Minute }
 	return bot.Pacing{
 		Enabled:         !g.PacingDisabled,
 		BotFirstPercent: g.BotFirstPercent,
@@ -262,30 +237,40 @@ func pacingFromSettings(g model.GeneralSettings) bot.Pacing {
 		OpenerWaitMax:   sec(g.OpenerWaitMaxSeconds),
 		BotOpenDelayMin: sec(g.BotOpenDelayMinSecs),
 		BotOpenDelayMax: sec(g.BotOpenDelayMaxSecs),
-		ActiveMin:       min(g.ActiveMinMinutes),
-		ActiveMax:       min(g.ActiveMaxMinutes),
-		RestMin:         min(g.RestMinMinutes),
-		RestMax:         min(g.RestMaxMinutes),
+		ActiveMin:       mins(g.ActiveMinMinutes),
+		ActiveMax:       mins(g.ActiveMaxMinutes),
+		RestMin:         mins(g.RestMinMinutes),
+		RestMax:         mins(g.RestMaxMinutes),
 		ChatsPerHourMax: g.ChatsPerHourMax,
-		LimitCooldown:   min(g.LimitCooldownMinutes),
+		LimitCooldown:   mins(g.LimitCooldownMinutes),
 	}
 }
 
-func (a *App) countSentMessages() (int, int, int, int, error) {
+// stateCounters are the Home counters that live in the per-profile
+// bot_state.json files; they are summed in a single pass.
+type stateCounters struct {
+	MessagesSent    int
+	TrafficUsers    int
+	SnapTgSentCount int
+	SkippedAccounts int
+	UserFirstCount  int
+	BotFirstCount   int
+}
+
+func (a *App) countStateCounters() (stateCounters, error) {
+	var c stateCounters
 	statePaths, err := filepath.Glob(filepath.Join(a.dataDir, "profiles", "*", "bot_state.json"))
 	if err != nil {
-		return 0, 0, 0, 0, err
+		return c, err
 	}
 
 	counts := map[string]int{}
 	uniqueUsers := map[string]bool{}
-	snapTgSentCount := 0
-	skippedUsersCount := 0
 	for _, statePath := range statePaths {
 		var state model.BotState
 		ok, err := store.LoadJSON(statePath, &state)
 		if err != nil {
-			return 0, 0, 0, 0, err
+			return c, err
 		}
 		if !ok {
 			continue
@@ -303,16 +288,18 @@ func (a *App) countSentMessages() (int, int, int, int, error) {
 				}
 				uniqueUsers[userID] = true
 			}
-			snapTgSentCount += accountState.SnapTgSentCount
-			skippedUsersCount += accountState.SkippedUsersCount
+			c.SnapTgSentCount += accountState.SnapTgSentCount
+			c.SkippedAccounts += accountState.SkippedUsersCount
+			c.UserFirstCount += accountState.UserFirstCount
+			c.BotFirstCount += accountState.BotFirstCount
 		}
 	}
 
-	total := 0
 	for _, count := range counts {
-		total += count
+		c.MessagesSent += count
 	}
-	return total, len(uniqueUsers), snapTgSentCount, skippedUsersCount, nil
+	c.TrafficUsers = len(uniqueUsers)
+	return c, nil
 }
 
 func (a *App) setWorkerRunning(profile string, running bool) {
